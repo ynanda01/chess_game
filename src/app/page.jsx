@@ -21,7 +21,7 @@ export default function HomePage() {
     <main
       className="relative min-h-screen bg-cover bg-center text-white flex items-center justify-center"
       style={{
-        backgroundImage: `url('/chess1.webp')`,
+        backgroundImage: `url('/chess5.jpg')`,
       }}
     >
      
@@ -55,7 +55,7 @@ export default function HomePage() {
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.3 }}
-          className="flex flex-col md:flex-row gap-10 items-center bg-black/40 p-6 rounded-lg shadow-xl"
+          className="flex flex-col md:flex-row gap-10 items-center bg-gradient-to-b from-black-500/80 to-white/40 p-6 rounded-lg shadow-xl"
         >
           {/* Chessboard */}
           <motion.div
