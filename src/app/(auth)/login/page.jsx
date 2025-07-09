@@ -3,19 +3,28 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { RiUserLine, RiLockLine } from "react-icons/ri";
+import { showError, showSuccess, clearError } from "../../../../lib/toast";
 
 export default function Loginpage() {
   const router = useRouter();
 
   const [Email, setEmail] = useState("");
   const [Password, setPassword] = useState("");
-  const [Error, setError] = useState({ error: "", success: "" });
+  
 
   const submitHandler = async (event) => {
     event.preventDefault();
+    clearError();
 
     if (!Email.trim() || !Password.trim()) {
-      setError({ error: "Please fill in both fields.", success: "" });
+      showError("Please fill in both fields.",{
+        duration: Infinity,
+        description: "Email and password cannot be empty.",
+        action: {
+          label: "X",
+          onClick: () =>console .log("closed"),
+          },
+      });
       return;
     }
 
@@ -29,18 +38,34 @@ export default function Loginpage() {
       const result = await response.json();
 
       if (!response.ok) {
-        setError({ error: result.message || "Login failed.", success: "" });
+        showError(result.message || "Login failed.",{
+          duration: Infinity,
+          description: "Invalid email or passowrd, Please try again.",
+          action: {
+            label: "X",
+            onClick: () => console.log("closed"),
+          },
+          });
+
         return;
       }
 
       localStorage.setItem("user", JSON.stringify(result.user));
-      setError({ error: "", success: "Login successful! Redirecting..." });
+      showSuccess("Login successful! Redirecting...");
 
       setTimeout(() => {
         router.push("/dashboard");
       }, 1200);
     } catch (err) {
-      setError({ error: "Server error. Please try later.", success: "" });
+      showError("Server error. Please try later.",{
+        duration: Infinity,
+        description: "There was an issue connecting to the server.",
+        action: {
+          label: "X",
+          onClick: () => console.log("closed"),}
+      }
+
+      );
     }
   };
 

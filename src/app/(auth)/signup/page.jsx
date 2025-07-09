@@ -1,7 +1,7 @@
 "use client";
-
 import React, { useState } from "react";
 import {
+
   MdPersonOutline,
   MdEmail,
   MdLockOutline,
@@ -9,10 +9,11 @@ import {
   MdVisibilityOff,
   MdErrorOutline,
   MdCheckCircleOutline,
+
 } from "react-icons/md";
 import { useRouter } from "next/navigation";
 
-export default function RegisterForm() {
+export default function SignupPage() {
   const router = useRouter();
 
   const [inputs, setInputs] = useState({
@@ -69,7 +70,7 @@ export default function RegisterForm() {
         return;
       }
 
-      setFeedback({ error: "", success: "Account created successfully! Redirecting to the login page..." });
+      setFeedback({ error: "", success: "Account created successfully! Automatically redirecting to the login page..." });
       setInputs({
         first: "",
         last: "",
