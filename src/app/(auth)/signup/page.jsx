@@ -12,6 +12,8 @@ import {
 
 } from "react-icons/md";
 import { useRouter } from "next/navigation";
+import { showError, showSuccess, clearError } from "../../../../lib/toast";
+
 
 export default function SignupPage() {
   const router = useRouter();
@@ -24,13 +26,14 @@ export default function SignupPage() {
     confirmPassword: "",
   });
 
-  const [feedback, setFeedback] = useState({ error: "", success: "" });
+  
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleChange = (e) => {
     setInputs((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+    clearError();
   };
 
   const togglePassword = () => setShowPassword((prev) => !prev);
@@ -39,11 +42,27 @@ export default function SignupPage() {
   const validateInputs = () => {
     const { first, last, email, password, confirmPassword } = inputs;
     if (!first || !last || !email || !password || !confirmPassword) {
-      setFeedback({ error: "All fields are required.", success: "" });
+      showError("All fields are required.",{
+        duration: Infinity,
+        description: "Please fill in all fields before submitting.",
+        action: {
+          label: "X",
+          onClick: () => console.log("closed"),}
+      }
+
+      );
       return false;
     }
     if (password !== confirmPassword) {
-      setFeedback({ error: "Passwords do not match.", success: "" });
+      showError("Passwords do not match.",{
+        duration: Infinity,
+        description: "Please ensure both password fields match.",
+        action: {
+          label: "X",
+          onClick: () => console.log("closed"),}
+      }
+
+      );
       return false;
     }
     return true;
@@ -65,12 +84,21 @@ export default function SignupPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        setFeedback({ error: data.message || "Signup failed.", success: "" });
+        showError("Signup failed.",{
+          duration: Infinity,
+          description: data.message || "Please check your inputs and try again.",
+          action: {
+            label: "X",
+            onClick: () => console.log("closed"),
+          },
+        }
+
+        );
         setIsLoading(false);
         return;
       }
 
-      setFeedback({ error: "", success: "Account created successfully! Automatically redirecting to the login page..." });
+      showSuccess("Account created successfully! Automatically redirecting to the login page...");
       setInputs({
         first: "",
         last: "",
@@ -83,7 +111,7 @@ export default function SignupPage() {
         router.push("/login");
       }, 2000);
     } catch {
-      setFeedback({ error: "Server error. Try again later.", success: "" });
+      showError("Server error. Try again later.");
     }
     setIsLoading(false);
   };
@@ -186,16 +214,6 @@ export default function SignupPage() {
           </button>
         </div>
 
-        {feedback.error && (
-          <p className="text-red-500 font-semibold text-center flex items-center justify-center gap-2">
-            <MdErrorOutline className="text-red-500" /> {feedback.error}
-          </p>
-        )}
-        {feedback.success && (
-          <p className="text-green-400 font-semibold text-center flex items-center justify-center gap-2">
-            <MdCheckCircleOutline className="text-green-400" /> {feedback.success}
-          </p>
-        )}
 
         <button
           type="submit"

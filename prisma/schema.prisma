@@ -10,6 +10,95 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
+}
+
+
+// This is for experimenter profile data
+
+model Experimenter {
+  id          Int          @id @default(autoincrement())
+  name        String
+  email       String       @unique
+  password    String
+  experiments Experiment[]
+}
+
+
+// Experiment with multiple conditions and puzzles
+
+model Experiment {
+  id             Int           @id @default(autoincrement())
+  name           String
+  description    String
+  experimenter   Experimenter  @relation(fields: [experimenter_Id], references: [id])
+  experimenter_Id Int
+  created_At      DateTime      @default(now())
+  conditions     Condition[]
+  puzzles        Puzzle[]
+  sessions       PlayerSession[]
+}
+
+// using for Different conditions
+
+model Condition {
+  id            Int        @id @default(autoincrement())
+  name          String
+  advice_format  String     // e.g., "advice", "advice+confidence", "advice+explanation"
+  time_limit     Boolean    // if time pressure presents 
+  experiment    Experiment @relation(fields: [experiment_Id], references: [id])
+  experiment_Id  Int
+  puzzles       Puzzle[]
+}
+
+// using for Individual chess puzzles
+
+model Puzzle {
+  id           Int       @id @default(autoincrement())
+  fen          String    // Chess board position in FEN notation
+  correct_move  String    // The correct move for this puzzle
+  experiment   Experiment @relation(fields: [experiment_Id], references: [id])
+  experiment_Id Int
+  condition    Condition  @relation(fields: [condition_Id], references: [id])
+  condition_Id  Int
+  advice       Advice?    // advice linked to puzzle
+  responses    PlayerResponse[]
+}
+
+// Advice linked to a puzzle
+
+model Advice {
+  id           Int      @id @default(autoincrement())
+  puzzle       Puzzle   @relation(fields: [puzzle_Id], references: [id])
+  puzzle_Id     Int      @unique 
+  text         String   // Advice text shown to player
+  confidence   Float?   // Optional confidence level
+  explanation  String?  // Optional explanation text
+}
+
+// Player session, no login, just playerName
+
+model PlayerSession {
+  id            Int           @id @default(autoincrement())
+  player_name    String        
+  experiment    Experiment    @relation(fields: [experiment_Id], references: [id])
+  experiment_Id  Int
+  started_At     DateTime      @default(now())
+  responses     PlayerResponse[]
+}
+
+// Player’s responses to puzzles during a session
+
+model PlayerResponse {
+  id               Int           @id @default(autoincrement())
+  session          PlayerSession @relation(fields: [session_Id], references: [id])
+  session_Id        Int
+  puzzle           Puzzle        @relation(fields: [puzzle_Id], references: [id])
+  puzzle_Id         Int
+  moveBefore_advice String?       // Move played before seeing advice
+  timeBefore_advice Int?          // Time taken before advice 
+  moveAfter_advice  String        // Move played after seeing advice
+  timeAfter_advice  Int?          // Time taken after advice
+  accepted_advice   Boolean       // Did player accept the advice?
 }

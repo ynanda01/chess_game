@@ -10,8 +10,12 @@
   },
   "dependencies": {
     "@prisma/client": "^6.11.1",
+    "bcryptjs": "^3.0.2",
     "chess.js": "^1.4.0",
+    "exceljs": "^4.4.0",
     "framer-motion": "^12.23.0",
+    "jsonwebtoken": "^9.0.2",
+    "mysql2": "^3.14.2",
     "next": "15.3.5",
     "react": "^19.0.0",
     "react-chessboard": "^5.0.0",
