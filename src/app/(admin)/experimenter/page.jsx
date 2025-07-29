@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { FiUser, FiLogOut, FiPlus, FiEdit, FiSettings, FiTrash } from "react-icons/fi";
+import {FiPlus,FiEdit,FiSettings,FiTrash } from "react-icons/fi";
 import "./page.css";
 
 export default function AdminDashboard() {
@@ -18,12 +18,8 @@ export default function AdminDashboard() {
     setExperiments(storedExperiments);
   }, []);
 
-  const handleCreate = () => router.push("/admin/create-experiment");
+  const handleCreate = () => router.push("/create-experiment");
 
-  const handleLogout = () => {
-    localStorage.removeItem("user");
-    router.push("/login");
-  };
 
   const handleDelete = (id) => {
     const experiment = experiments.find((exp) => exp.id === id);
@@ -83,25 +79,8 @@ export default function AdminDashboard() {
 
   return (
     <div className="dashboard">
-      {/* Navbar */}
-      <nav className="navbar">
-        <div className="navbar-left">
-          <img src="/logo.png" alt="Logo" className="navbar-logo" />
-        </div>
+      
 
-        <div className="navbar-title">Welcome, {userName}</div>
-
-        <div className="navbar-actions">
-          <button onClick={() => router.push("/admin/profile")} className="icon-btn">
-            <FiUser /> Profile
-          </button>
-          <button onClick={handleLogout} className="icon-btn logout">
-            <FiLogOut /> Logout
-          </button>
-        </div>
-      </nav>
-
-      {/* Main Content */}
       <main className="dashboard-main">
         <div className="create-wrapper">
           <button onClick={handleCreate} className="create-btn">

@@ -6,7 +6,6 @@
 
 generator client {
   provider = "prisma-client-js"
-  output   = "../src/generated/prisma"
 }
 
 datasource db {
@@ -17,88 +16,150 @@ datasource db {
 
 // This is for experimenter profile data
 
-model Experimenter {
+model Experimenters {
   id          Int          @id @default(autoincrement())
   name        String
   email       String       @unique
   password    String
+  created_at  DateTime     @default(now())
   experiments Experiment[]
+
+  @@map("experimenters")
 }
-
-
-// Experiment with multiple conditions and puzzles
 
 model Experiment {
   id             Int           @id @default(autoincrement())
   name           String
   description    String
-  experimenter   Experimenter  @relation(fields: [experimenter_Id], references: [id])
-  experimenter_Id Int
-  created_At      DateTime      @default(now())
-  conditions     Condition[]
+  conditionName  String        
+  adviceformat   String
+  timerEnabled   Boolean
+  timeLimit      Int?
+
+  experimenter   Experimenters @relation(fields: [experimenterId], references: [id], onDelete: Cascade)
+  experimenterId Int
+
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
+
   puzzles        Puzzle[]
   sessions       PlayerSession[]
+  sessionOrders  SessionExperimentOrder[]
+
+  @@map("experiments")
 }
 
-// using for Different conditions
 
-model Condition {
-  id            Int        @id @default(autoincrement())
-  name          String
-  advice_format  String     // e.g., "advice", "advice+confidence", "advice+explanation"
-  time_limit     Boolean    // if time pressure presents 
-  experiment    Experiment @relation(fields: [experiment_Id], references: [id])
-  experiment_Id  Int
-  puzzles       Puzzle[]
+
+
+// Randomized Level Order (e.g., Level 1–5)
+
+model SessionExperimentOrder {
+  id           Int        @id @default(autoincrement())
+  player_Name  String
+  experiment   Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  experimentId Int
+  order        Int        // Level number (1–5)
+
+  created_at   DateTime   @default(now())
+
+  @@unique([player_Name, experimentId])
+  @@unique([player_Name, order])
+  @@map("session_experiment_orders")
 }
 
-// using for Individual chess puzzles
 
+
+
+// Puzzles in an experiment
 model Puzzle {
   id           Int       @id @default(autoincrement())
-  fen          String    // Chess board position in FEN notation
-  correct_move  String    // The correct move for this puzzle
-  experiment   Experiment @relation(fields: [experiment_Id], references: [id])
-  experiment_Id Int
-  condition    Condition  @relation(fields: [condition_Id], references: [id])
-  condition_Id  Int
-  advice       Advice?    // advice linked to puzzle
+  fen          String    // Chess board state
+  correct_move String    // Correct solution
+  order        Int       // Order in experiment
+
+  experiment   Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  experimentId Int
+
+  advice       Advice?
   responses    PlayerResponse[]
+
+  @@unique([experimentId, order])
+  @@map("puzzles")
 }
 
 // Advice linked to a puzzle
-
 model Advice {
-  id           Int      @id @default(autoincrement())
-  puzzle       Puzzle   @relation(fields: [puzzle_Id], references: [id])
-  puzzle_Id     Int      @unique 
-  text         String   // Advice text shown to player
-  confidence   Float?   // Optional confidence level
-  explanation  String?  // Optional explanation text
+  id           Int     @id @default(autoincrement())
+  puzzle       Puzzle  @relation(fields: [puzzleId], references: [id], onDelete: Cascade)
+  puzzleId     Int     @unique
+
+  text         String
+  confidence   Float?     // Optional confidence %
+  explanation  String?    // Optional explanation
+  reliability  String     // "Poor", "Moderate", "High"
+
+  @@map("advice")
 }
 
 // Player session, no login, just playerName
 
 model PlayerSession {
-  id            Int           @id @default(autoincrement())
-  player_name    String        
-  experiment    Experiment    @relation(fields: [experiment_Id], references: [id])
-  experiment_Id  Int
-  started_At     DateTime      @default(now())
-  responses     PlayerResponse[]
+  id             Int       @id @default(autoincrement())
+  player_name    String
+  experiment     Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  experimentId   Int
+
+  display_level  Int       // Level number (1–5)
+  started_at     DateTime  @default(now())
+  completed_at   DateTime?
+
+  responses      PlayerResponse[]
+
+  @@unique([player_name, experimentId])
+  @@map("player_sessions")
 }
 
 // Player’s responses to puzzles during a session
 
 model PlayerResponse {
-  id               Int           @id @default(autoincrement())
-  session          PlayerSession @relation(fields: [session_Id], references: [id])
-  session_Id        Int
-  puzzle           Puzzle        @relation(fields: [puzzle_Id], references: [id])
-  puzzle_Id         Int
-  moveBefore_advice String?       // Move played before seeing advice
-  timeBefore_advice Int?          // Time taken before advice 
-  moveAfter_advice  String        // Move played after seeing advice
-  timeAfter_advice  Int?          // Time taken after advice
-  accepted_advice   Boolean       // Did player accept the advice?
+  id                   Int            @id @default(autoincrement())
+
+  session              PlayerSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sessionId            Int
+  puzzle               Puzzle         @relation(fields: [puzzleId], references: [id], onDelete: Cascade)
+  puzzleId             Int
+
+  move_before_advice   String?        // Optional
+  time_before_advice   Int?           // In seconds
+  move_after_advice    String         // Final move submitted
+  time_after_advice    Int?           // In seconds
+
+  advice_shown         Boolean        @default(false)
+  advice_requested     Boolean        @default(false)
+  move_matches_advice  Boolean        @default(false)
+
+  undo_used            Boolean        @default(false)
+  time_exceeded        Boolean        @default(false)
+  skipped              Boolean        @default(false)
+
+  completed_at         DateTime       @default(now())
+
+  moves                MoveRecord[]   // Full move history
+
+  @@unique([sessionId, puzzleId])
+  @@map("player_responses")
+}
+
+model MoveRecord {
+  id             Int            @id @default(autoincrement())
+  response       PlayerResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  responseId     Int
+
+  move           String         // Algebraic move e.g., e2e4
+  move_number    Int            // Order in sequence: 1, 2, 3...
+  time_taken     Int?           // Time in seconds
+  was_undone     Boolean        // True if undone later
+
+  created_at     DateTime       @default(now())
 }

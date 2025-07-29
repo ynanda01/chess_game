@@ -1,0 +1,130 @@
+
+.condition-page {
+  max-width: 900px;
+  margin: 6px 40px;
+  padding: 1rem;
+}
+
+.heading {
+  text-align: center;
+  font-size: 25px;
+  font-weight: 700;
+  margin-bottom: 40px;
+}
+
+.condition-inputs {
+  margin-bottom: 40px;
+}
+
+.inputs {
+  display: block;
+  font-size: 19px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: #222;
+}
+
+.inputs-field {
+  width: 100%;
+  padding: 12px;
+  font-size: 16px;
+  border: 1px solid #b1b0af;
+  border-radius: 8px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.inputs-field:focus {
+  border-color: #717272;
+  box-shadow: 0 0 0 2px rgba(94, 93, 93, 0.1);
+  outline: none;
+}
+
+.radio-group {
+  display: flex;
+  gap: 50px;
+  margin-bottom: 29px;
+  margin-top: 25px;
+  flex-wrap: wrap;
+}
+
+.radio-option {
+  font-size: 16px;
+  font-weight: 500;
+  color: #333;
+}
+
+
+.buttons {
+  display: flex;
+  justify-content: space-between;
+  text-align: center;
+  margin-top: 60px;
+}
+
+.save-button {
+  padding: 9px 24px;
+  background-color: rgba(9, 42, 160, 0.768)d7;
+  color: #ffffff;
+  font-size: 16px;
+  border: none;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.save-button:hover:not(:disabled) {
+  background-color: rgb(31, 117, 31);
+}
+
+.save-button:not(:disabled) {
+  background-color: rgb(45, 131, 17);
+}
+
+.save-button:disabled {
+  background-color: #898686;
+  cursor: not-allowed;
+}
+
+.back-button {
+  padding: 9px 24px;
+  background-color: rgba(11, 55, 215, 0.768);
+  color: #fcfdfe;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.back-button:hover {
+  background-color: #d6461e;
+  color: #ffffff;
+}
+
+.time-control {
+  display: flex;
+  gap: 16px;
+  align-items: center; 
+}
+
+
+.time-input {
+  width: 100px;
+    height: 45px;
+  background: transparent;
+  position: relative;
+  
+}
+.time-select {
+  width: 120px;
+  height: 45px; 
+}
+
+.time-input::-webkit-inner-spin-button,
+.time-input::-webkit-outer-spin-button {
+    appearance: none;
+  }
+
+
+

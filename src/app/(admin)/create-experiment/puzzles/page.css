@@ -1,0 +1,177 @@
+.puzzle-container {
+  padding: 2rem;
+  min-height: 100vh;
+}
+
+.heading-title {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 25px;
+  font-weight: 700;
+  margin-bottom: 40px;
+  position: relative;
+  color: #222;
+}
+
+.puzzle-form {
+  display: flex;
+  gap: 2rem;
+  flex-wrap: wrap;
+  margin-bottom: 40px;
+}
+
+/* Transparent background for left and right sections */
+.form-left,
+.form-right {
+  flex: 1;
+  min-width: 300px;
+  background-color: transparent;
+  padding: 1rem;
+  border-radius: 8px;
+  box-sizing: border-box;
+}
+
+.input-field {
+  width: 100%;
+  padding: 12px;
+  font-size: 16px;
+  border: 1px solid #b1b0af;
+  border-radius: 8px;
+  margin-bottom: 15px;
+  box-sizing: border-box;
+}
+
+.chessboard-box {
+  size: 200px;
+  margin-top: 15px;
+}
+
+.puzzle-list {
+  background-color: #fff; /* white background */
+  padding: 20px;
+  border-radius: 8px;
+  max-width: 900px;
+  margin: 0 auto 40px auto;
+  box-sizing: border-box;
+}
+
+.puzzle-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 10px;
+  border-bottom: 1px solid #ddd;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.puzzle-item:last-child {
+  border-bottom: none;
+}
+
+.puzzle-details {
+  flex: 1;
+  min-width: 220px;
+  font-size: 14px;
+  color: #333;
+}
+
+.puzzle-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.edit-btn,
+.delete-btn {
+  padding: 6px 12px;
+  font-size: 14px;
+  font-weight: 500;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.edit-btn {
+  background-color: #337ab7;
+  color: #fff;
+}
+
+.edit-btn:hover {
+  background-color: #286090;
+}
+
+.delete-btn {
+  background-color: #d9534f;
+  color: white;
+}
+
+.delete-btn:hover {
+  background-color: #c9302c;
+}
+
+.buttons {
+  display: flex;
+  justify-content: space-between;
+  text-align: center;
+  margin-top: 60px;
+  
+  
+}
+
+.back-button {
+  background-color: rgba(11, 55, 215, 0.768);
+  color: #fff;
+  padding: 9px 24px;
+  font-size: 16px;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  border: none;
+  text-align: left;
+}
+
+.back-button:hover {
+  background-color: #d6461e;
+}
+
+.add-button {
+  background-color: #3c3caf;
+  color: white;
+  padding: 9px 24px;
+  font-size: 16px;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  border: none; 
+  text-align: center;
+}
+
+.add-button:hover {
+  background-color: #292987;
+}
+
+.save-button {
+  background-color: rgb(45, 131, 17);
+  color: #fff;
+  padding: 9px 24px;
+  font-size: 16px;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  border: none;
+  text-align: right;
+}
+
+.save-button:disabled {
+  background-color: #898686;
+  cursor: not-allowed;
+}
+
+.save-button:hover:enabled {
+  background-color: rgb(31, 117, 31);
+}
+

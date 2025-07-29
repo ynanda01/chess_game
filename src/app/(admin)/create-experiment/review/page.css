@@ -1,0 +1,35 @@
+/* app/create-experiment/review/review.css */
+.review-container {
+  max-width: 800px;
+  margin: 40px auto;
+  padding: 24px;
+  background-color: #f9f9f9;
+  border-radius: 16px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+  font-family: 'Segoe UI', sans-serif;
+}
+
+.review-heading {
+  font-size: 2rem;
+  margin-bottom: 32px;
+  text-align: center;
+  color: #333;
+}
+
+.review-section {
+  margin-bottom: 32px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #ddd;
+}
+
+.review-section h2 {
+  font-size: 1.25rem;
+  margin-bottom: 16px;
+  color: #444;
+}
+
+.review-item {
+  font-size: 1rem;
+  margin-bottom: 8px;
+  color: #555;
+}

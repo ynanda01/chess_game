@@ -1,0 +1,119 @@
+.layout {
+  display: flex;
+  height: 100%; /* Use full height of parent container */
+  overflow: hidden; /* Prevent layout from scrolling */
+}
+
+/* Left Sidebar - Fixed */
+.sidebar {
+  width: 260px;
+  background-color: #323946;
+  padding: 2rem 1rem;
+  border-right: 1px solid #1f2937;
+  flex-shrink: 0; /* Prevent sidebar from shrinking */
+  overflow-y: auto; /* Allow sidebar to scroll if content is too long */
+  height: 100%;
+}
+
+.sidebar-title {
+  font-size: 1.6rem;
+  font-weight: bold;
+  margin-bottom: 2rem;
+  color: #f9fafb;
+}
+
+/* Right Panel - Scrollable Content */
+.main-content {
+  flex: 1;
+  background-color: #d1d2d3;
+  color: #000000;
+  font-size: 1.2rem;
+  font-weight: 550;
+  padding: 2rem;
+  overflow-y: auto; /* Enable vertical scrolling for main content */
+  height: 100%;
+  /* Add extra height for better scrolling experience */
+  min-height: calc(100vh - 100px); /* Adjust as needed */
+}
+
+/* Add significant padding at the bottom for better scrolling */
+.main-content {
+  flex: 1;
+  background-color: #d1d2d3;
+  color: #000000;
+  font-size: 1.2rem;
+  font-weight: 550;
+  padding: 2rem;
+  padding-bottom: 200px; /* Add extra padding at the bottom */
+  overflow-y: auto;
+  height: 100%;
+  min-height: calc(100vh - 100px);
+}
+
+/* Additional bottom spacing for any button containers */
+button, .btn, [type="button"], [type="submit"] {
+  margin-bottom: 20px;
+}
+
+/* Ensure the last elements have extra space */
+.main-content > *:last-child {
+  margin-bottom: 100px !important;
+}
+
+.step-wise {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.step-link {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  text-decoration: none;
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: #f9fafb;
+  border-radius: 9px;
+  transition: background 0.3s, opacity 0.3s, color 0.3s;
+  padding: 0.75rem; /* Add padding for better click area */
+}
+
+.step-link:hover {
+  background: #af5206;
+}
+
+.step-link.active {
+  background-color: #2249d6;
+  color: white;
+}
+
+.step-link:not(.active) {
+  opacity: 0.6;
+  color: #cbd5e1;
+}
+
+.step-icon:not(.current) {
+  opacity: 0.6;
+}
+
+.step-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 90%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  color: white;
+}
+
+.step-icon.completed {
+  background-color: #11c617;
+}
+
+.step-link.disabled {
+  pointer-events: none;
+  opacity: 0.5;
+  cursor: not-allowed;
+}

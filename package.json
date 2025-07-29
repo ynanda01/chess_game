@@ -15,10 +15,12 @@
     "exceljs": "^4.4.0",
     "framer-motion": "^12.23.0",
     "jsonwebtoken": "^9.0.2",
+    "lucide-react": "^0.526.0",
     "mysql2": "^3.14.2",
     "next": "15.3.5",
     "react": "^19.0.0",
-    "react-chessboard": "^5.0.0",
+    "react-dnd": "^16.0.1",
+    "react-dnd-html5-backend": "^16.0.1",
     "react-dom": "^19.0.0",
     "react-icons": "^5.5.0",
     "sonner": "^2.0.6"
