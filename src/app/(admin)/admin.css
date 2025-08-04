@@ -42,9 +42,12 @@
 }
 
 .navbar-logo {
-  height: 50px;
-  width: 50px;
-  object-fit: contain;
+  transform: scale(1.2);
+  transform-origin: left center;
+  height: 90px;
+  max-height: 100%;
+  width: auto;
+  
 }
 
 .navbar-center {
@@ -54,7 +57,7 @@
 
 .welcome-text {
   font-weight: 600;
-  font-size: 1.2rem;
+  font-size: 1.8rem;
   color: white;
 }
 

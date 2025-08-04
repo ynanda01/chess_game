@@ -1,5 +1,5 @@
 // app/api/login/route.js (with enhanced debugging)
-import prisma from '../../../../lib/prisma';
+import prisma from '../../../../../lib/prisma';
 import bcrypt from 'bcryptjs';
 
 export async function POST(request) {
@@ -9,7 +9,7 @@ export async function POST(request) {
     // Debug logging
     console.log('=== LOGIN DEBUG ===');
     console.log('Received Email:', Email);
-    console.log('Received Password:', password); // Temporarily log actual password for debugging
+    console.log('Received Password:', password); 
     console.log('Received Password length:', password?.length);
 
     // Basic validation

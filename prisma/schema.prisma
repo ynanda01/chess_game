@@ -14,8 +14,7 @@ datasource db {
 }
 
 
-// This is for experimenter profile data
-
+// Experimenter profile data
 model Experimenters {
   id          Int          @id @default(autoincrement())
   name        String
@@ -27,14 +26,15 @@ model Experimenters {
   @@map("experimenters")
 }
 
+// Main experiment container
 model Experiment {
   id             Int           @id @default(autoincrement())
   name           String
   description    String
-  conditionName  String        
-  adviceformat   String
-  timerEnabled   Boolean
-  timeLimit      Int?
+  adviceformat   String        // Global advice format for the experiment
+  timerEnabled   Boolean       // Global timer setting
+  timeLimit      Int?          // Global time limit
+  isActive       Boolean       @default(false)
 
   experimenter   Experimenters @relation(fields: [experimenterId], references: [id], onDelete: Cascade)
   experimenterId Int
@@ -42,23 +42,45 @@ model Experiment {
   created_at     DateTime  @default(now())
   updated_at     DateTime  @updatedAt
 
-  puzzles        Puzzle[]
+  conditions     Condition[]   // One experiment can have multiple conditions
   sessions       PlayerSession[]
   sessionOrders  SessionExperimentOrder[]
 
   @@map("experiments")
 }
 
+// NEW: Condition model - represents different experimental conditions
+model Condition {
+  id             Int           @id @default(autoincrement())
+  name           String        // e.g., "Control", "With Advice", "No Timer", etc.
+  description    String?       // Optional description of this condition
+  
+  // Condition-specific settings (can override experiment defaults)
+  adviceformat   String?       // Override experiment's advice format
+  timerEnabled   Boolean?      // Override timer setting
+  timeLimit      Int?          // Override time limit
+  
+  experiment     Experiment    @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  experimentId   Int
+  
+  order          Int           // Order of conditions within experiment
+  
+  created_at     DateTime      @default(now())
+  
+  puzzles        Puzzle[]      // Each condition has its own puzzles
+  
+  @@unique([experimentId, order])
+  @@unique([experimentId, name])  // Unique condition names within experiment
+  @@map("conditions")
+}
 
-
-
-// Randomized Level Order (e.g., Level 1–5)
-
+// Randomized Level Order (now includes condition assignment)
 model SessionExperimentOrder {
   id           Int        @id @default(autoincrement())
   player_Name  String
   experiment   Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
   experimentId Int
+  conditionId  Int?       // Optional: assign player to specific condition
   order        Int        // Level number (1–5)
 
   created_at   DateTime   @default(now())
@@ -68,27 +90,24 @@ model SessionExperimentOrder {
   @@map("session_experiment_orders")
 }
 
-
-
-
-// Puzzles in an experiment
+// Puzzles now belong to conditions instead of directly to experiments
 model Puzzle {
   id           Int       @id @default(autoincrement())
   fen          String    // Chess board state
   correct_move String    // Correct solution
-  order        Int       // Order in experiment
+  order        Int       // Order within this condition
 
-  experiment   Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
-  experimentId Int
+  condition    Condition @relation(fields: [conditionId], references: [id], onDelete: Cascade)
+  conditionId  Int
 
   advice       Advice?
   responses    PlayerResponse[]
 
-  @@unique([experimentId, order])
+  @@unique([conditionId, order])  // Unique order within each condition
   @@map("puzzles")
 }
 
-// Advice linked to a puzzle
+// Advice linked to a puzzle (unchanged)
 model Advice {
   id           Int     @id @default(autoincrement())
   puzzle       Puzzle  @relation(fields: [puzzleId], references: [id], onDelete: Cascade)
@@ -102,13 +121,13 @@ model Advice {
   @@map("advice")
 }
 
-// Player session, no login, just playerName
-
+// Player session (minimal changes)
 model PlayerSession {
   id             Int       @id @default(autoincrement())
   player_name    String
   experiment     Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
   experimentId   Int
+  conditionId    Int?      // Track which condition this player is in
 
   display_level  Int       // Level number (1–5)
   started_at     DateTime  @default(now())
@@ -120,8 +139,7 @@ model PlayerSession {
   @@map("player_sessions")
 }
 
-// Player’s responses to puzzles during a session
-
+// Player's responses to puzzles during a session (unchanged)
 model PlayerResponse {
   id                   Int            @id @default(autoincrement())
 
@@ -151,6 +169,7 @@ model PlayerResponse {
   @@map("player_responses")
 }
 
+// Move record (unchanged)
 model MoveRecord {
   id             Int            @id @default(autoincrement())
   response       PlayerResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)

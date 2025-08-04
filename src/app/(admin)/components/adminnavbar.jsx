@@ -36,7 +36,7 @@ export default function AdminNavbar({ userName }) {
     <>
       <nav className="navbar">
         <div className="navbar-left">
-          <img src="/your-logo.png" alt="Logo" className="navbar-logo" />
+          <img src="/logo.svg" alt="Logo" className="navbar-logo" />
         </div>
                 
         <div className="navbar-center">

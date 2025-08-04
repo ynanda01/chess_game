@@ -1,5 +1,7 @@
 .create-experiment-page {
+  background: #dedddd;
   max-width: 900px;
+  border-radius: 10px ;
   margin: 6px 40px;
   padding: 1rem;
 }

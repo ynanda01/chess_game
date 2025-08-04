@@ -1,62 +1,33 @@
+
 'use client';
-
+/* game page code place in the /game/[level]/page.jsx */
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
-import Newboard from '../../../../components/newboard';
-
-const MOCK_PUZZLES = [
-  {
-    fen: '8/5k2/3p4/1p1Pp2p/pP2Pp1P/P4P1K/8/8 b - - 99 50',
-    advice: {
-      text: 'e7e5',
-      confidence: 0.8,
-      explanation: 'This opens up the center and allows for good piece development.'
-    },
-    condition: {
-      advice_format: ['confidence', 'explanation'],
-      timer_enabled: true, // Experimenter can control this
-      time_limit: 30 // Optional time limit in seconds (null for no limit)
-    }
-  },
-  {
-    fen: '4k2r/6r1/8/8/8/8/3R4/R3K3 w Qk - 0 1',
-    advice: {
-      text: 'g8f6',
-      confidence: 0.65,
-      explanation: 'Develops a knight to a natural square and prepares for castling.'
-    },
-    condition: {
-      advice_format: ['confidence', 'explanation'],
-      timer_enabled: false, // Timer disabled for this puzzle
-      time_limit: null
-    }
-  },
-  {
-    fen: '8/8/8/4p1K1/2k1P3/8/8/8 b - - 0 1',
-    advice: {
-      text: 'b1c3',
-      confidence: 0.45,
-      explanation: 'Develops the knight and supports the central pawn.'
-    },
-    condition: {
-      advice_format: ['confidence', 'explanation'],
-      timer_enabled: true,
-      time_limit: 60 // 60 second limit
-    }
-  }
-];
+import Newboard from '../../../../components/Newboard.jsx';
 
 export default function LevelPage() {
+  const { level } = useParams();
+  const router = useRouter();
+  
+  // Experiment and puzzle states
+  const [experiment, setExperiment] = useState(null);
+  const [condition, setCondition] = useState(null);
+  const [puzzles, setPuzzles] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  
+  // Game states
   const [gameState, setGameState] = useState('waiting'); // 'waiting', 'moved', 'advice-shown', 'submitted'
   const [userMove, setUserMove] = useState(null);
   const [userMoveDetails, setUserMoveDetails] = useState(null);
   const [adviceVisible, setAdviceVisible] = useState(false);
   
   // Timer states
-  const [preAdviceTime, setPreAdviceTime] = useState(0); // Time before advice (seconds)
-  const [postAdviceTime, setPostAdviceTime] = useState(0); // Time after advice (seconds)
-  const [currentTimer, setCurrentTimer] = useState(0); // Current running timer
+  const [preAdviceTime, setPreAdviceTime] = useState(0);
+  const [postAdviceTime, setPostAdviceTime] = useState(0);
+  const [currentTimer, setCurrentTimer] = useState(0);
   const [timerActive, setTimerActive] = useState(false);
   const [timeExceeded, setTimeExceeded] = useState(false);
   
@@ -66,19 +37,82 @@ export default function LevelPage() {
   const puzzleStartTimeRef = useRef(null);
   const adviceShownTimeRef = useRef(null);
 
-  const puzzle = MOCK_PUZZLES[currentIndex];
-  const sideToMove = puzzle.fen.includes(' w ') ? 'White' : 'Black';
-  const isTimerEnabled = puzzle.condition.timer_enabled;
-  const timeLimit = puzzle.condition.time_limit;
+  // Session data
+  const [sessionId, setSessionId] = useState(null);
+  const [playerName, setPlayerName] = useState('');
+
+  // Load experiment data and session info
+  useEffect(() => {
+    const loadExperimentData = async () => {
+      try {
+        setLoading(true);
+        
+        // Get player session data
+        const storedSessionId = localStorage.getItem('sessionId');
+        const storedPlayerName = localStorage.getItem('playerName');
+        
+        if (!storedSessionId || !storedPlayerName) {
+          router.push('/');
+          return;
+        }
+        
+        setSessionId(storedSessionId);
+        setPlayerName(storedPlayerName);
+        
+        // Fetch active experiment
+        const response = await fetch('/api/experiments/active');
+        if (!response.ok) {
+          throw new Error('No active experiment found');
+        }
+        
+        const experimentData = await response.json();
+        
+        if (!experimentData.active) {
+          throw new Error('No active experiment available');
+        }
+        
+        setExperiment(experimentData);
+        
+        // Find the condition (set) based on level parameter
+        const levelIndex = parseInt(level) - 1; // Convert level (1-5) to index (0-4)
+        const selectedCondition = experimentData.conditions[levelIndex];
+        
+        if (!selectedCondition) {
+          throw new Error(`Set ${level} not found`);
+        }
+        
+        setCondition(selectedCondition);
+        setPuzzles(selectedCondition.puzzles);
+        
+      } catch (err) {
+        console.error('Error loading experiment:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadExperimentData();
+  }, [level, router]);
+
+  // Get current puzzle and its settings
+  const currentPuzzle = puzzles[currentIndex];
+  const sideToMove = currentPuzzle ? (currentPuzzle.fen.includes(' w ') ? 'White' : 'Black') : '';
+  
+  // Determine timer settings (condition overrides experiment defaults)
+  const isTimerEnabled = condition ? 
+    (condition.timerEnabled !== null ? condition.timerEnabled : experiment?.timerEnabled) : false;
+  const timeLimit = condition ? 
+    (condition.timeLimit !== null ? condition.timeLimit : experiment?.timeLimit) : null;
 
   // Start timer when puzzle begins
   useEffect(() => {
-    if (gameState === 'waiting') {
+    if (gameState === 'waiting' && currentPuzzle) {
       startTimer();
       puzzleStartTimeRef.current = Date.now();
       setTimeExceeded(false);
     }
-  }, [currentIndex, gameState]);
+  }, [currentIndex, gameState, currentPuzzle]);
 
   // Timer function
   const startTimer = useCallback(() => {
@@ -95,7 +129,7 @@ export default function LevelPage() {
       if (timeLimit && elapsed >= timeLimit) {
         setTimeExceeded(true);
       }
-    }, 100); // Update every 100ms for smooth display
+    }, 100);
   }, [isTimerEnabled, timeLimit]);
 
   // Stop timer
@@ -116,8 +150,8 @@ export default function LevelPage() {
     };
   }, []);
 
-  const handleMoveSubmit = useCallback((move, moveDetails) => {
-    // Record pre-advice time (mandatory)
+  const handleMoveSubmit = useCallback(async (move, moveDetails) => {
+    // Record pre-advice time
     const preTime = Math.floor((Date.now() - puzzleStartTimeRef.current) / 1000);
     setPreAdviceTime(preTime);
     
@@ -156,8 +190,8 @@ export default function LevelPage() {
     }
   }, [isTimerEnabled, stopTimer, startTimer]);
 
-  const handleSubmitMove = useCallback(() => {
-    // Record post-advice time (mandatory)
+  const handleSubmitMove = useCallback(async () => {
+    // Record post-advice time
     if (adviceShownTimeRef.current) {
       const postTime = Math.floor((Date.now() - adviceShownTimeRef.current) / 1000);
       setPostAdviceTime(postTime);
@@ -166,29 +200,54 @@ export default function LevelPage() {
     stopTimer();
     setGameState('submitted');
     
-    // Log timing data (this would be sent to your backend)
-    const timingData = {
-      puzzleIndex: currentIndex,
-      preAdviceTime: preAdviceTime,
-      postAdviceTime: adviceShownTimeRef.current ? 
+    // Prepare data to send to backend
+    const responseData = {
+      sessionId: sessionId,
+      puzzleId: currentPuzzle.id,
+      moveBeforeAdvice: null, // Since we auto-show advice after move
+      timeBeforeAdvice: preAdviceTime,
+      moveAfterAdvice: userMove,
+      timeAfterAdvice: adviceShownTimeRef.current ? 
         Math.floor((Date.now() - adviceShownTimeRef.current) / 1000) : 0,
-      userMove: userMove,
-      adviceMove: puzzle.advice.text,
-      timerEnabled: isTimerEnabled,
-      timeLimit: timeLimit,
-      timeExceeded: timeExceeded
+      adviceShown: true,
+      adviceRequested: false,
+      moveMatchesAdvice: userMove === currentPuzzle.correct_move,
+      undoUsed: false,
+      timeExceeded: timeExceeded,
+      skipped: false
     };
     
-    console.log('Timing Data:', timingData);
+    try {
+      // Send response to backend
+      await fetch('/api/player-responses', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(responseData),
+      });
+      
+      console.log('Response saved:', responseData);
+    } catch (error) {
+      console.error('Error saving response:', error);
+    }
     
     // Auto advance to next puzzle after 2 seconds
     setTimeout(() => {
       handleNextPuzzle();
     }, 2000);
-  }, [currentIndex, preAdviceTime, userMove, puzzle.advice.text, isTimerEnabled, timeLimit, timeExceeded, stopTimer]);
+  }, [sessionId, currentPuzzle, preAdviceTime, userMove, timeExceeded, stopTimer]);
 
   const handleNextPuzzle = useCallback(() => {
     stopTimer();
+    
+    if (currentIndex + 1 >= puzzles.length) {
+      // All puzzles completed in this set
+      router.push('/welcome');
+      return;
+    }
+    
+    // Move to next puzzle
     setGameState('waiting');
     setUserMove(null);
     setUserMoveDetails(null);
@@ -197,21 +256,40 @@ export default function LevelPage() {
     setPostAdviceTime(0);
     setCurrentTimer(0);
     setTimeExceeded(false);
-    setCurrentIndex((prev) => (prev + 1) % MOCK_PUZZLES.length);
-  }, [stopTimer]);
+    setCurrentIndex(prev => prev + 1);
+  }, [stopTimer, currentIndex, puzzles.length, router]);
 
-  const handleSkipPuzzle = useCallback(() => {
-    stopTimer();
-    setGameState('waiting');
-    setUserMove(null);
-    setUserMoveDetails(null);
-    setAdviceVisible(false);
-    setPreAdviceTime(0);
-    setPostAdviceTime(0);
-    setCurrentTimer(0);
-    setTimeExceeded(false);
-    setCurrentIndex((prev) => (prev + 1) % MOCK_PUZZLES.length);
-  }, [stopTimer]);
+  const handleSkipPuzzle = useCallback(async () => {
+    // Record skip in database
+    const responseData = {
+      sessionId: sessionId,
+      puzzleId: currentPuzzle.id,
+      moveBeforeAdvice: null,
+      timeBeforeAdvice: Math.floor((Date.now() - puzzleStartTimeRef.current) / 1000),
+      moveAfterAdvice: '',
+      timeAfterAdvice: 0,
+      adviceShown: false,
+      adviceRequested: false,
+      moveMatchesAdvice: false,
+      undoUsed: false,
+      timeExceeded: timeExceeded,
+      skipped: true
+    };
+    
+    try {
+      await fetch('/api/player-responses', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(responseData),
+      });
+    } catch (error) {
+      console.error('Error saving skip:', error);
+    }
+    
+    handleNextPuzzle();
+  }, [sessionId, currentPuzzle, timeExceeded, handleNextPuzzle]);
 
   const handleShowAdvice = useCallback(() => {
     // Record pre-advice time when manually showing advice
@@ -229,54 +307,19 @@ export default function LevelPage() {
     }
   }, [isTimerEnabled, stopTimer, startTimer]);
 
-  // Extract from/to squares from advice - Better parsing for different formats
+  // Get highlight squares for advice
   const getHighlightSquares = useCallback(() => {
-    if (!adviceVisible || !puzzle.advice.text) return [];
+    if (!adviceVisible || !currentPuzzle?.advice?.text) return [];
     
-    const adviceText = puzzle.advice.text;
+    const adviceText = currentPuzzle.advice.text;
     
     // Handle coordinate notation like "e2e4"
     if (adviceText.length === 4 && /^[a-h][1-8][a-h][1-8]$/.test(adviceText)) {
       return [adviceText.slice(0, 2), adviceText.slice(2, 4)];
     }
     
-    // Handle algebraic notation like "Nf6", "e4", "O-O", etc.
-    if (adviceText.length >= 2) {
-      // Simple pawn moves like "e4"
-      if (/^[a-h][1-8]$/.test(adviceText)) {
-        return [adviceText];
-      }
-      
-      // Knight moves like "Nf6"
-      if (/^N[a-h][1-8]$/.test(adviceText)) {
-        return [adviceText.slice(1)];
-      }
-      
-      // Bishop moves like "Bc4"  
-      if (/^B[a-h][1-8]$/.test(adviceText)) {
-        return [adviceText.slice(1)];
-      }
-      
-      // Rook moves like "Rd1"
-      if (/^R[a-h][1-8]$/.test(adviceText)) {
-        return [adviceText.slice(1)];
-      }
-      
-      // Queen moves like "Qd4"
-      if (/^Q[a-h][1-8]$/.test(adviceText)) {
-        return [adviceText.slice(1)];
-      }
-      
-      // King moves like "Kh1"
-      if (/^K[a-h][1-8]$/.test(adviceText)) {
-        return [adviceText.slice(1)];
-      }
-    }
-    
     return [];
-  }, [adviceVisible, puzzle.advice.text]);
-
-  const highlightSquares = getHighlightSquares();
+  }, [adviceVisible, currentPuzzle]);
 
   // Format time display
   const formatTime = (seconds) => {
@@ -293,6 +336,21 @@ export default function LevelPage() {
     if (progress >= 0.8) return 'text-orange-400';
     if (progress >= 0.6) return 'text-yellow-400';
     return 'text-green-400';
+  };
+
+  // Get confidence color based on percentage
+  const getConfidenceColor = (confidence) => {
+    const percentage = confidence * 100;
+    if (percentage >= 70) return 'bg-green-500';
+    if (percentage >= 40) return 'bg-yellow-500';
+    return 'bg-red-500';
+  };
+
+  // Parse advice format
+  const getAdviceFormat = () => {
+    if (!condition) return [];
+    const format = condition.adviceformat || experiment?.adviceformat || '';
+    return format.split(',').map(f => f.trim());
   };
 
   const getStatusMessage = () => {
@@ -325,26 +383,70 @@ export default function LevelPage() {
     }
   };
 
-  // Get confidence color based on percentage
-  const getConfidenceColor = (confidence) => {
-    const percentage = confidence * 100;
-    if (percentage >= 70) return 'bg-green-500';
-    if (percentage >= 40) return 'bg-yellow-500';
-    return 'bg-red-500';
-  };
+  const highlightSquares = getHighlightSquares();
+  const adviceFormat = getAdviceFormat();
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-900 text-white">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400 mx-auto mb-4"></div>
+          <p className="text-lg">Loading experiment...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-900 text-white">
+        <div className="text-center">
+          <p className="text-red-400 text-lg mb-4">Error: {error}</p>
+          <button
+            onClick={() => router.push('/welcome')}
+            className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded"
+          >
+            Back to Home
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // No puzzle state
+  if (!currentPuzzle) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-900 text-white">
+        <div className="text-center">
+          <p className="text-lg">No puzzles available for this set.</p>
+          <button
+            onClick={() => router.push('/welcome')}
+            className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded mt-4"
+          >
+            Back to Home
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 text-white max-w-6xl mx-auto p-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Level 1</h1>
+        <div>
+          <h1 className="text-3xl font-bold">Set {level}</h1>
+          
+        </div>
         <div className="text-right">
           <p className="text-yellow-300 text-lg">
-            Puzzle {currentIndex + 1} of {MOCK_PUZZLES.length}
+            Puzzle {currentIndex + 1} of {puzzles.length}
           </p>
           <div className="w-48 bg-gray-700 rounded-full h-2 mt-2">
             <div
               className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-              style={{ width: `${((currentIndex + 1) / MOCK_PUZZLES.length) * 100}%` }}
+              style={{ width: `${((currentIndex + 1) / puzzles.length) * 100}%` }}
             />
           </div>
         </div>
@@ -410,7 +512,7 @@ export default function LevelPage() {
       {!isTimerEnabled && (
         <div className="bg-gray-800 p-3 rounded-lg border border-gray-600">
           <p className="text-gray-400 text-center">
-            ⏱️ Timer disabled for this puzzle
+            ⏱️ Timer disabled for this set
             {preAdviceTime > 0 && (
               <span className="ml-4 text-blue-400">
                 Pre-advice: {formatTime(preAdviceTime)}
@@ -448,7 +550,7 @@ export default function LevelPage() {
         <div className="lg:col-span-2">
           <Newboard
             key={`puzzle-${currentIndex}`}
-            fen={puzzle.fen}
+            fen={currentPuzzle.fen}
             boardWidth={500}
             onMoveSubmit={handleMoveSubmit}
             onUndo={handleUndo}
@@ -520,7 +622,7 @@ export default function LevelPage() {
             </div>
           )}
 
-          {(gameState === 'advice-shown' || adviceVisible) && (
+          {(gameState === 'advice-shown' || adviceVisible) && currentPuzzle.advice && (
             <div className="bg-gray-800 p-6 rounded-lg">
               <h3 className="text-xl font-semibold mb-4 text-green-400">Chess Advice</h3>
               
@@ -540,32 +642,40 @@ export default function LevelPage() {
 
                 <div className="bg-green-900/30 p-4 rounded border border-green-500">
                   <p className="text-green-400 font-semibold">
-                    🎯 Recommended: {puzzle.advice.text}
+                    🎯 Recommended: {currentPuzzle.advice.text}
                   </p>
                 </div>
 
-                {puzzle.condition.advice_format.includes('confidence') && (
+                {adviceFormat.includes('confidence') && currentPuzzle.advice.confidence && (
                   <div>
                     <div className="flex justify-between items-center mb-2">
                       <p className="text-sm text-gray-300">
                         Confidence
                       </p>
                       <p className="text-sm font-bold text-white">
-                        {Math.round(puzzle.advice.confidence * 100)}%
+                        {Math.round(currentPuzzle.advice.confidence * 100)}%
                       </p>
                     </div>
                     <div className="w-full bg-gray-700 rounded-full h-4">
                       <div
-                        className={`h-4 rounded-full transition-all duration-500 ${getConfidenceColor(puzzle.advice.confidence)}`}
-                        style={{ width: `${puzzle.advice.confidence * 100}%` }}
+                        className={`h-4 rounded-full transition-all duration-500 ${getConfidenceColor(currentPuzzle.advice.confidence)}`}
+                        style={{ width: `${currentPuzzle.advice.confidence * 100}%` }}
                       />
                     </div>
                   </div>
                 )}
 
-                {puzzle.condition.advice_format.includes('explanation') && (
+                {adviceFormat.includes('explanation') && currentPuzzle.advice.explanation && (
                   <div className="bg-purple-900/20 p-4 rounded border border-purple-400">
-                    <p className="text-purple-200 italic">💭 {puzzle.advice.explanation}</p>
+                    <p className="text-purple-200 italic">💭 {currentPuzzle.advice.explanation}</p>
+                  </div>
+                )}
+
+                {adviceFormat.includes('reliability') && currentPuzzle.advice.reliability && (
+                  <div className="bg-orange-900/20 p-3 rounded border border-orange-400">
+                    <p className="text-orange-200 text-sm">
+                      📊 Reliability: <span className="font-semibold">{currentPuzzle.advice.reliability}</span>
+                    </p>
                   </div>
                 )}
 
@@ -642,91 +752,3 @@ export default function LevelPage() {
     </div>
   );
 }
-
-
-// 'use client';
-
-// import { useEffect, useState } from 'react';
-// import { useParams } from 'next/navigation';
-// import Manualchessboard from '@/components/manualchessboard';
-// import Image from 'next/image';
-
-// export default function LevelPage() {
-//   const { level } = useParams();
-//   const [sessionId, setSessionId] = useState(null);
-//   const [puzzles, setPuzzles] = useState([]);
-//   const [currentIndex, setCurrentIndex] = useState(0);
-//   const [showAdvice, setShowAdvice] = useState(false);
-//   const [moveBeforeAdvice, setMoveBeforeAdvice] = useState(null);
-
-//   useEffect(() => {
-//     const id = localStorage.getItem('sessionId');
-//     if (!id) return;
-//     setSessionId(id);
-
-//     const fetchPuzzles = async () => {
-//       const res = await fetch(`/api/puzzles?level=${level}&sessionId=${id}`);
-//       const data = await res.json();
-//       setPuzzles(data);
-//     };
-
-//     fetchPuzzles();
-//   }, [level]);
-
-//   if (!puzzles.length) return <p className="text-white">Loading puzzles...</p>;
-
-//   const puzzle = puzzles[currentIndex];
-//   const sideToMove = puzzle.fen.includes(' w ') ? 'White' : 'Black';
-
-//   const handleSubmitMove = (move) => {
-//     setMoveBeforeAdvice(move);
-//     setShowAdvice(true);
-//   };
-
-//   const handleNextPuzzle = () => {
-//     setShowAdvice(false);
-//     setMoveBeforeAdvice(null);
-//     setCurrentIndex((prev) => prev + 1);
-//   };
-
-//   return (
-//     <div className="space-y-6">
-//       <h1 className="text-3xl font-bold">Level {level}</h1>
-//       <p className="text-yellow-300">Puzzle {currentIndex + 1} of {puzzles.length}</p>
-
-//       <div className="flex items-center gap-3">
-//         <Image src="/human-icon.png" alt="Human" width={32} height={32} />
-//         <p className="text-lg">{sideToMove} to move</p>
-//       </div>
-
-//       <Manualchessboard
-//         fen={puzzle.fen}
-//         boardWidth={500}
-//         onMoveSubmit={handleSubmitMove}
-//         isLocked={showAdvice}
-//         highlightMove={showAdvice ? puzzle.advice.text : null}
-//       />
-
-//       {showAdvice && (
-//         <div className="mt-6 space-y-3">
-//           <h3 className="text-xl font-semibold">Advice</h3>
-//           <p className="text-green-400">Recommended Move: {puzzle.advice.text}</p>
-
-//           {puzzle.condition.advice_format.includes('confidence') && (
-//             <div className="w-full bg-gray-700 rounded h-4">
-//               <div className="bg-green-500 h-4 rounded" style={{ width: `${puzzle.advice.confidence * 100}%` }}></div>
-//             </div>
-//           )}
-
-//           {puzzle.condition.advice_format.includes('explanation') && (
-//             <p className="text-gray-200 italic">{puzzle.advice.explanation}</p>
-//           )}
-
-//           <button onClick={handleNextPuzzle} className="bg-blue-600 px-4 py-2 rounded mt-4">
-//             Next Puzzle
-//           </button>
-//         </div>
-//       )}
-//     </div>
-//   );
-// }

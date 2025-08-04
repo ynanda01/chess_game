@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import { Chess } from "chess.js";
 
 export default function Newboard({ 
@@ -13,19 +13,20 @@ export default function Newboard({
 }) {
   const [selectedSquare, setSelectedSquare] = useState(null);
   const [possibleMoves, setPossibleMoves] = useState([]);
-  const [draggedPiece, setDraggedPiece] = useState(null);
   const [draggedFrom, setDraggedFrom] = useState(null);
   const [hoveredSquare, setHoveredSquare] = useState(null);
   const [tempMove, setTempMove] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const draggedPieceRef = useRef(null);
 
   // Reset states when FEN changes (new puzzle)
   useEffect(() => {
     setSelectedSquare(null);
     setPossibleMoves([]);
     setTempMove(null);
-    setDraggedPiece(null);
     setDraggedFrom(null);
     setHoveredSquare(null);
+    setIsDragging(false);
   }, [fen]);
 
   const game = new Chess();
@@ -48,20 +49,42 @@ export default function Newboard({
   const files = ["a", "b", "c", "d", "e", "f", "g", "h"];
   const squareSize = boardWidth / 8;
 
+  // Parse advice move from different formats
+  const parseAdviceMove = useCallback(() => {
+    if (!showAdvice || !highlightSquares.length) return null;
+    
+    if (highlightSquares.length === 2) {
+      return {
+        from: highlightSquares[0],
+        to: highlightSquares[1]
+      };
+    }
+    
+    if (highlightSquares.length === 1) {
+      const move = highlightSquares[0];
+      if (move.length === 4 && /^[a-h][1-8][a-h][1-8]$/.test(move)) {
+        return {
+          from: move.slice(0, 2),
+          to: move.slice(2, 4)
+        };
+      }
+    }
+    
+    return null;
+  }, [showAdvice, highlightSquares]);
+
   // Handle piece selection for showing possible moves
   const handleSquareClick = useCallback((square) => {
-    if (isLocked) return;
+    if (isLocked || isDragging) return;
 
     const piece = game.get(square);
     
-    // If clicking same square, deselect
     if (selectedSquare === square) {
       setSelectedSquare(null);
       setPossibleMoves([]);
       return;
     }
 
-    // If clicking on a piece of current player, show possible moves
     if (piece && piece.color === game.turn()) {
       setSelectedSquare(square);
       try {
@@ -74,20 +97,19 @@ export default function Newboard({
       return;
     }
 
-    // If a square is selected, try to make a move
     if (selectedSquare) {
       makeMove(selectedSquare, square);
     }
-  }, [selectedSquare, isLocked, game, fen]);
+  }, [selectedSquare, isLocked, isDragging, game]);
 
-  // Make move function (used by both click and drag)
+  // Make move function
   const makeMove = useCallback((from, to) => {
     const testGame = new Chess();
     try {
       testGame.load(fen);
     } catch (error) {
       console.log("Error loading FEN:", error);
-      return;
+      return false;
     }
     
     try {
@@ -105,23 +127,79 @@ export default function Newboard({
           newFen: testGame.fen()
         });
         
-        // Clear selection
         setSelectedSquare(null);
         setPossibleMoves([]);
         
         if (onMoveSubmit) {
           onMoveSubmit(move.san, { from: from, to: to });
         }
+        return true;
       }
     } catch (error) {
       console.log("Invalid move:", error.message);
-      // Clear selection on invalid move
       setSelectedSquare(null);
       setPossibleMoves([]);
     }
+    return false;
   }, [fen, onMoveSubmit]);
 
-  // Drag and drop handlers
+  // Drag handlers - COMPLETELY REWRITTEN
+  const handleMouseDown = useCallback((e, square) => {
+    if (isLocked) return;
+    
+    const piece = game.get(square);
+    if (!piece || piece.color !== game.turn()) return;
+
+    e.preventDefault();
+    setIsDragging(true);
+    setDraggedFrom(square);
+    draggedPieceRef.current = piece;
+
+    console.log('Mouse down on:', square, 'piece:', piece);
+
+    const handleMouseMove = (moveEvent) => {
+      // Visual feedback during drag could be added here
+    };
+
+    const handleMouseUp = (upEvent) => {
+      console.log('Mouse up');
+      
+      // Find the element under the mouse
+      const elementBelow = document.elementFromPoint(upEvent.clientX, upEvent.clientY);
+      let targetSquare = null;
+
+      // Look for the square div or its parent
+      let current = elementBelow;
+      while (current && !targetSquare) {
+        if (current.dataset && current.dataset.square) {
+          targetSquare = current.dataset.square;
+          break;
+        }
+        current = current.parentElement;
+      }
+
+      console.log('Target square:', targetSquare);
+
+      if (targetSquare && targetSquare !== square) {
+        console.log('Attempting move:', square, '->', targetSquare);
+        makeMove(square, targetSquare);
+      }
+
+      // Cleanup
+      setIsDragging(false);
+      setDraggedFrom(null);
+      setHoveredSquare(null);
+      draggedPieceRef.current = null;
+      
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, [isLocked, game, makeMove]);
+
+  // Also keep the HTML5 drag API as backup
   const handleDragStart = useCallback((e, square) => {
     if (isLocked) {
       e.preventDefault();
@@ -134,58 +212,45 @@ export default function Newboard({
       return;
     }
 
-    setDraggedPiece(piece);
+    console.log('HTML5 Drag start from:', square);
+    setIsDragging(true);
     setDraggedFrom(square);
-
-    const pieceCode = piece.color === "w" ? piece.type.toUpperCase() : piece.type.toLowerCase();
-    const filename = pieceToFile[pieceCode];
-    
-    e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', square);
-    
-    // Try to set custom drag image
-    try {
-      const img = new Image();
-      img.src = `/${filename}.svg`;
-      e.dataTransfer.setDragImage(img, squareSize * 0.4, squareSize * 0.4);
-    } catch (error) {
-      // Fallback if setDragImage fails
-    }
-  }, [isLocked, game, squareSize, pieceToFile]);
+  }, [isLocked, game]);
 
-  const handleDragOver = useCallback((e, square) => {
+  const handleDragOver = useCallback((e) => {
     e.preventDefault();
-    if (!isLocked && draggedFrom) {
-      setHoveredSquare(square);
-      e.dataTransfer.dropEffect = 'move';
-    }
-  }, [isLocked, draggedFrom]);
-
-  const handleDragLeave = useCallback(() => {
-    setHoveredSquare(null);
   }, []);
+
+  const handleDragEnter = useCallback((e, square) => {
+    e.preventDefault();
+    if (draggedFrom && draggedFrom !== square) {
+      setHoveredSquare(square);
+    }
+  }, [draggedFrom]);
 
   const handleDrop = useCallback((e, square) => {
     e.preventDefault();
+    const fromSquare = e.dataTransfer.getData('text/plain');
     
-    if (isLocked || !draggedFrom || draggedFrom === square) {
-      setDraggedPiece(null);
-      setDraggedFrom(null);
-      setHoveredSquare(null);
-      return;
+    console.log('HTML5 Drop:', fromSquare, '->', square);
+    
+    if (fromSquare && fromSquare !== square) {
+      makeMove(fromSquare, square);
     }
 
-    makeMove(draggedFrom, square);
-
-    setDraggedPiece(null);
+    setIsDragging(false);
     setDraggedFrom(null);
     setHoveredSquare(null);
-  }, [isLocked, draggedFrom, makeMove]);
+  }, [makeMove]);
 
   const handleUndo = useCallback(() => {
     setTempMove(null);
     setSelectedSquare(null);
     setPossibleMoves([]);
+    setDraggedFrom(null);
+    setHoveredSquare(null);
+    setIsDragging(false);
     if (onUndo) {
       onUndo();
     }
@@ -197,44 +262,32 @@ export default function Newboard({
     const isLight = (fileIndex + rank) % 2 === 0;
     let backgroundColor = isLight ? "#f0d9b5" : "#b58863";
 
-    // Check if this square is part of advice move
-    const isAdviceSquare = showAdvice && highlightSquares.includes(square);
-    // Check if this square is part of made move
+    const adviceMove = parseAdviceMove();
+    const isAdviceSquare = adviceMove && (adviceMove.from === square || adviceMove.to === square);
     const isMadeMove = tempMove && (tempMove.from === square || tempMove.to === square);
+    const moveMatchesAdvice = tempMove && adviceMove && 
+      tempMove.from === adviceMove.from && tempMove.to === adviceMove.to;
     
-    // Check if made move matches advice move exactly
-    const moveMatchesAdvice = tempMove && showAdvice && highlightSquares.length >= 2 && 
-      ((tempMove.from === highlightSquares[0] && tempMove.to === highlightSquares[1]) ||
-       (tempMove.from === highlightSquares[1] && tempMove.to === highlightSquares[0]));
-    
-    // Priority order: Selected > Possible moves > Move matches advice (green) > Made move (red) > Advice move (green) > Hover
-    
-    // 1. Selected square (blue)
     if (selectedSquare === square) {
-      backgroundColor = "#4169E1"; // Royal blue
+      backgroundColor = "#4169E1";
     }
-    // 2. Possible moves (yellow)
     else if (possibleMoves.includes(square)) {
-      backgroundColor = "#FFD700"; // Gold
+      backgroundColor = "#FFD700";
     }
-    // 3. Made move that matches advice (green) - highest priority for move squares
-    else if (isMadeMove && moveMatchesAdvice) {
-      backgroundColor = "#00AA00"; // Green when move matches advice exactly
-    }
-    // 4. Made move that doesn't match advice (red)
-    else if (isMadeMove && !moveMatchesAdvice) {
-      backgroundColor = tempMove.from === square ? "#FF4444" : "#FF6666"; // Red for non-matching moves
-    }
-    // 5. Advice move only (green)
-    else if (isAdviceSquare) {
-      backgroundColor = "#00AA00"; // Green for advice
-    }
-    // 6. Hover during drag (light green)
-    else if (hoveredSquare === square && draggedFrom) {
+    else if (hoveredSquare === square && isDragging) {
       backgroundColor = "#90EE90";
     }
+    else if (isMadeMove && moveMatchesAdvice) {
+      backgroundColor = "#228B22";
+    }
+    else if (isMadeMove && !moveMatchesAdvice) {
+      backgroundColor = tempMove.from === square ? "#DC143C" : "#FF6B6B";
+    }
+    else if (isAdviceSquare && !isMadeMove) {
+      backgroundColor = isLight ? "#f0d9b5" : "#b58863";
+    }
 
-    return {
+    const style = {
       width: squareSize,
       height: squareSize,
       backgroundColor,
@@ -246,9 +299,16 @@ export default function Newboard({
       position: "relative",
       cursor: isLocked ? "default" : "pointer",
     };
-  }, [selectedSquare, possibleMoves, tempMove, showAdvice, highlightSquares, hoveredSquare, draggedFrom, squareSize]);
 
-  // Use temp move FEN if available, otherwise use original FEN
+    if (isAdviceSquare && !isMadeMove) {
+      style.border = "3px solid #00FF00";
+      style.boxShadow = "inset 0 0 0 2px #00FF00";
+    }
+
+    return style;
+  }, [selectedSquare, possibleMoves, tempMove, showAdvice, hoveredSquare, isDragging, squareSize, parseAdviceMove]);
+
+  // Use temp move FEN if available
   const displayGame = new Chess();
   try {
     displayGame.load(tempMove ? tempMove.newFen : fen);
@@ -272,10 +332,11 @@ export default function Newboard({
       squares.push(
         <div
           key={square}
+          data-square={square}
           style={getSquareStyle(square)}
           onClick={() => handleSquareClick(square)}
-          onDragOver={(e) => handleDragOver(e, square)}
-          onDragLeave={handleDragLeave}
+          onDragOver={handleDragOver}
+          onDragEnter={(e) => handleDragEnter(e, square)}
           onDrop={(e) => handleDrop(e, square)}
         >
           {pieceImage && (
@@ -284,16 +345,18 @@ export default function Newboard({
               alt={piece?.type} 
               draggable={!isLocked && piece?.color === game.turn()}
               onDragStart={(e) => handleDragStart(e, square)}
+              onMouseDown={(e) => handleMouseDown(e, square)}
               style={{ 
                 width: squareSize * 0.8, 
                 height: squareSize * 0.8,
                 cursor: (!isLocked && piece?.color === game.turn()) ? "grab" : "default",
-                pointerEvents: piece?.color === game.turn() ? "auto" : "none",
+                userSelect: "none",
+                pointerEvents: "auto",
+                opacity: (draggedFrom === square && isDragging) ? 0.5 : 1,
               }} 
             />
           )}
           
-          {/* Show dots for possible moves on empty squares */}
           {possibleMoves.includes(square) && !piece && (
             <div
               style={{
@@ -301,11 +364,11 @@ export default function Newboard({
                 height: squareSize * 0.3,
                 backgroundColor: "rgba(0, 0, 0, 0.4)",
                 borderRadius: "50%",
+                pointerEvents: "none",
               }}
             />
           )}
 
-          {/* Show rings for possible captures */}
           {possibleMoves.includes(square) && piece && (
             <div
               style={{
@@ -322,6 +385,8 @@ export default function Newboard({
       );
     }
   }
+
+  const adviceMove = parseAdviceMove();
 
   return (
     <div>
@@ -347,16 +412,14 @@ export default function Newboard({
               <p style={{ color: "#ffeb3b", margin: 0 }}>
                 Move made: <strong>{tempMove.move.san}</strong> ({tempMove.from} → {tempMove.to})
               </p>
-              {/* Show if move matches advice */}
-              {showAdvice && highlightSquares.length >= 2 && (
-                ((tempMove.from === highlightSquares[0] && tempMove.to === highlightSquares[1]) ||
-                 (tempMove.from === highlightSquares[1] && tempMove.to === highlightSquares[0])) ? (
-                  <p style={{ color: "#00AA00", margin: 0, fontSize: "14px" }}>
+              {showAdvice && adviceMove && (
+                (tempMove.from === adviceMove.from && tempMove.to === adviceMove.to) ? (
+                  <p style={{ color: "#00FF00", margin: 0, fontSize: "14px" }}>
                     ✅ Perfect! Your move matches the advice
                   </p>
                 ) : (
                   <p style={{ color: "#FF6666", margin: 0, fontSize: "14px" }}>
-                    💡 Different from advice - see green squares
+                    💡 Different from advice - see highlighted squares
                   </p>
                 )
               )}
@@ -365,6 +428,16 @@ export default function Newboard({
           {selectedSquare && possibleMoves.length > 0 && (
             <p style={{ color: "#FFD700", margin: 0, fontSize: "14px" }}>
               Selected: {selectedSquare} ({possibleMoves.length} possible moves)
+            </p>
+          )}
+          {showAdvice && adviceMove && (
+            <p style={{ color: "#00FF00", margin: 0, fontSize: "14px" }}>
+              💡 Advice: {adviceMove.from} → {adviceMove.to}
+            </p>
+          )}
+          {isDragging && draggedFrom && (
+            <p style={{ color: "#87CEEB", margin: 0, fontSize: "14px" }}>
+              Dragging piece from {draggedFrom}...
             </p>
           )}
         </div>
@@ -390,7 +463,6 @@ export default function Newboard({
         )}
       </div>
 
-      {/* Color legend */}
       <div style={{ 
         marginTop: "10px", 
         display: "flex", 
@@ -407,12 +479,20 @@ export default function Newboard({
           <span style={{ color: "#fff" }}>Possible moves</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-          <div style={{ width: "12px", height: "12px", backgroundColor: "#FF4444", borderRadius: "2px" }}></div>
+          <div style={{ width: "12px", height: "12px", backgroundColor: "#90EE90", borderRadius: "2px" }}></div>
+          <span style={{ color: "#fff" }}>Drag hover</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+          <div style={{ width: "12px", height: "12px", backgroundColor: "#DC143C", borderRadius: "2px" }}></div>
           <span style={{ color: "#fff" }}>Your move</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-          <div style={{ width: "12px", height: "12px", backgroundColor: "#00AA00", borderRadius: "2px" }}></div>
-          <span style={{ color: "#fff" }}>Advice/Perfect match</span>
+          <div style={{ width: "12px", height: "12px", backgroundColor: "#228B22", borderRadius: "2px" }}></div>
+          <span style={{ color: "#fff" }}>Perfect match</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+          <div style={{ width: "12px", height: "12px", backgroundColor: "#f0d9b5", border: "2px solid #00FF00", borderRadius: "2px" }}></div>
+          <span style={{ color: "#fff" }}>Advice</span>
         </div>
       </div>
     </div>

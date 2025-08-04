@@ -1,7 +1,7 @@
 .layout {
   display: flex;
-  height: 100%; /* Use full height of parent container */
-  overflow: hidden; /* Prevent layout from scrolling */
+  height: 100%; 
+  overflow: hidden; 
 }
 
 /* Left Sidebar - Fixed */
@@ -10,8 +10,8 @@
   background-color: #323946;
   padding: 2rem 1rem;
   border-right: 1px solid #1f2937;
-  flex-shrink: 0; /* Prevent sidebar from shrinking */
-  overflow-y: auto; /* Allow sidebar to scroll if content is too long */
+  flex-shrink: 0;
+  overflow-y: auto; 
   height: 100%;
 }
 
@@ -22,20 +22,6 @@
   color: #f9fafb;
 }
 
-/* Right Panel - Scrollable Content */
-.main-content {
-  flex: 1;
-  background-color: #d1d2d3;
-  color: #000000;
-  font-size: 1.2rem;
-  font-weight: 550;
-  padding: 2rem;
-  overflow-y: auto; /* Enable vertical scrolling for main content */
-  height: 100%;
-  /* Add extra height for better scrolling experience */
-  min-height: calc(100vh - 100px); /* Adjust as needed */
-}
-
 /* Add significant padding at the bottom for better scrolling */
 .main-content {
   flex: 1;
@@ -44,10 +30,10 @@
   font-size: 1.2rem;
   font-weight: 550;
   padding: 2rem;
-  padding-bottom: 200px; /* Add extra padding at the bottom */
+  /* padding-bottom: 300px;  */
   overflow-y: auto;
-  height: 100%;
-  min-height: calc(100vh - 100px);
+  /* height: 100%;
+  min-height: calc(100vh - 100px); */
 }
 
 /* Additional bottom spacing for any button containers */
@@ -56,9 +42,9 @@ button, .btn, [type="button"], [type="submit"] {
 }
 
 /* Ensure the last elements have extra space */
-.main-content > *:last-child {
+/* .main-content > *:last-child {
   margin-bottom: 100px !important;
-}
+} */
 
 .step-wise {
   display: flex;
@@ -116,4 +102,284 @@ button, .btn, [type="button"], [type="submit"] {
   pointer-events: none;
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+
+
+/* Experiment Info Header */
+.experiment-info, .experiment-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 30px;
+  border-radius: 12px;
+  margin-bottom: 30px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.experiment-title {
+  font-size: 2rem;
+  margin: 0 0 10px 0;
+  font-weight: 600;
+}
+
+.experiment-description {
+  font-size: 1.1rem;
+  margin: 0 0 20px 0;
+  opacity: 0.9;
+  line-height: 1.5;
+}
+
+.experiment-stats {
+  display: flex;
+  gap: 30px;
+  flex-wrap: wrap;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.stat-label {
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
+.stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+/* Condition Info in Puzzle Page */
+.experiment-condition-info {
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 12px;
+  padding: 25px;
+  margin-bottom: 25px;
+}
+
+.condition-info-header {
+  margin-top: 15px;
+}
+
+.condition-title {
+  color: #495057;
+  font-size: 1.3rem;
+  margin: 0 0 8px 0;
+}
+
+.condition-settings {
+  display: flex;
+  gap: 20px;
+  margin-top: 10px;
+  font-size: 0.9rem;
+  color: #6c757d;
+}
+
+/* Existing Conditions Section */
+.existing-conditions-section {
+  background: #f8f9fa;
+  border-radius: 12px;
+  padding: 25px;
+  margin-top: 20px;
+}
+
+.existing-conditions-section h3 {
+  color: #495057;
+  margin-bottom: 20px;
+  font-size: 1.2rem;
+}
+
+.conditions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.condition-card {
+  background: white;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.condition-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-color: #adb5bd;
+}
+
+.condition-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 20px;
+}
+
+.condition-info {
+  flex: 1;
+}
+
+.condition-name {
+  color: #495057;
+  margin: 0 0 8px 0;
+  font-size: 1.1rem;
+}
+
+.condition-description {
+  color: #6c757d;
+  margin: 0 0 12px 0;
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.condition-details {
+  display: flex;
+  gap: 15px;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+  color: #6c757d;
+}
+
+.detail-item {
+  background: #e9ecef;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.condition-actions {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.action-btn {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  font-size: 14px;
+}
+
+.view-btn {
+  background: #e3f2fd;
+  color: #1976d2;
+}
+
+.view-btn:hover {
+  background: #bbdefb;
+}
+
+.edit-btn {
+  background: #fff3e0;
+  color: #f57c00;
+}
+
+.edit-btn:hover {
+  background: #ffe0b2;
+}
+
+.puzzle-btn {
+  background: #e8f5e8;
+  color: #388e3c;
+}
+
+.puzzle-btn:hover {
+  background: #c8e6c9;
+}
+
+.delete-btn {
+  background: #ffebee;
+  color: #d32f2f;
+}
+
+.delete-btn:hover {
+  background: #ffcdd2;
+}
+
+/* Condition Puzzles Expansion */
+.condition-puzzles {
+  border-top: 1px solid #e9ecef;
+  padding: 20px;
+  background: #f8f9fa;
+}
+
+.condition-puzzles h4 {
+  margin: 0 0 15px 0;
+  color: #495057;
+  font-size: 1rem;
+}
+
+.no-puzzles {
+  text-align: center;
+  color: #6c757d;
+  padding: 20px;
+}
+
+.puzzles-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #495057;
+}
+
+/* Form Styles */
+.heading, .heading-title {
+  color: #2c3e50;
+  text-align: center;
+  margin-bottom: 30px;
+  font-size: 1.8rem;
+  font-weight: 600;
+}
+
+.condition-inputs {
+  margin-bottom: 25px;
+}
+
+.inputs {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: #495057;
+  font-size: 0.95rem;
+}
+
+.inputs-field {
+  width: 100%;
+  padding: 12px;
+  border: 2px solid #e9ecef;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: border-color 0.2s ease;
+  box-sizing: border-box;
+}
+
+.inputs-field:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.inputs-field:disabled {
+  background-color: #f8f9fa;
+  color: #6c757d;
+}
+
+.field-hint {
+  display: block;
+  margin-top: 6px;
+  color: #6c757d;
+  font-size: 0.85rem;
+}
+
+.field-hint.warning {
+  color: #dc3545;
+  font-weight: 500;
 }

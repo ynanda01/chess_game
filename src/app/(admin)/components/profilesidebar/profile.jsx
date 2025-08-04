@@ -1,41 +1,65 @@
+// Updated ProfileSidebar.js
 import { useState, useEffect } from 'react';
 import { FiUser, FiMail, FiEdit3, FiX } from "react-icons/fi";
+import { useAuth } from "@/app/Authcontext/Authcontext.js";
 import './profile.css';
 
 export default function ProfileSidebar({ isOpen, onClose }) {
+  const { user, login } = useAuth(); // Get user from auth context
   const [userProfile, setUserProfile] = useState({});
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({});
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // Fetch user profile data
     const fetchUserProfile = async () => {
+      if (!user?.email) return;
+      
+      setLoading(true);
       try {
-        // Replace with your actual API call
-        const response = await fetch('/api/user/profile');
+        const response = await fetch('/api/profile', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'user-email': user.email
+          }
+        });
+
         if (response.ok) {
           const profileData = await response.json();
           setUserProfile(profileData);
           setEditForm(profileData);
+        } else {
+          // Fallback to user data from auth context
+          const fallbackData = {
+            firstName: user.name?.split(' ')[0] || '',
+            lastName: user.name?.split(' ').slice(1).join(' ') || '',
+            email: user.email,
+            avatar: null
+          };
+          setUserProfile(fallbackData);
+          setEditForm(fallbackData);
         }
       } catch (error) {
         console.error('Failed to fetch profile:', error);
-        // Fallback sample data for demo
-        const sampleData = {
-          firstName: 'John',
-          lastName: 'Doe',
-          email: 'john.doe@example.com',
+        // Fallback to user data from auth context
+        const fallbackData = {
+          firstName: user.name?.split(' ')[0] || '',
+          lastName: user.name?.split(' ').slice(1).join(' ') || '',
+          email: user.email,
           avatar: null
         };
-        setUserProfile(sampleData);
-        setEditForm(sampleData);
+        setUserProfile(fallbackData);
+        setEditForm(fallbackData);
+      } finally {
+        setLoading(false);
       }
     };
 
-    if (isOpen) {
+    if (isOpen && user) {
       fetchUserProfile();
     }
-  }, [isOpen]);
+  }, [isOpen, user]);
 
   const handleInputChange = (field, value) => {
     setEditForm(prev => ({
@@ -45,11 +69,15 @@ export default function ProfileSidebar({ isOpen, onClose }) {
   };
 
   const handleSave = async () => {
+    if (!user?.email) return;
+    
+    setLoading(true);
     try {
-      const response = await fetch('/api/user/profile', {
+      const response = await fetch('/api/profile', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
+          'user-email': user.email
         },
         body: JSON.stringify(editForm)
       });
@@ -58,15 +86,25 @@ export default function ProfileSidebar({ isOpen, onClose }) {
         const updatedProfile = await response.json();
         setUserProfile(updatedProfile);
         setIsEditing(false);
+        
+        // Update auth context with new name
+        const updatedUser = {
+          ...user,
+          name: `${updatedProfile.firstName} ${updatedProfile.lastName}`.trim(),
+          email: updatedProfile.email
+        };
+        login(updatedUser);
+        
+        alert('Profile updated successfully!');
       } else {
-        alert('Failed to update profile');
+        const error = await response.json();
+        alert(error.message || 'Failed to update profile');
       }
     } catch (error) {
       console.error('Failed to update profile:', error);
-      // For demo purposes, just update locally
-      setUserProfile(editForm);
-      setIsEditing(false);
-      alert('Profile updated successfully!');
+      alert('Network error. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -93,6 +131,7 @@ export default function ProfileSidebar({ isOpen, onClose }) {
           <button
             onClick={onClose}
             className="profile-close-btn"
+            disabled={loading}
           >
             <FiX />
           </button>
@@ -100,120 +139,132 @@ export default function ProfileSidebar({ isOpen, onClose }) {
 
         {/* Profile Content */}
         <div className="profile-content">
-          {/* Avatar Section */}
-          <div className="profile-avatar-section">
-            <div className="profile-avatar">
-              {userProfile.avatar ? (
-                <img 
-                  src={userProfile.avatar} 
-                  alt="Profile" 
-                  className="profile-avatar-img"
-                />
-              ) : (
-                <FiUser className="profile-avatar-icon" />
-              )}
-            </div>
-            <h3 className="profile-name">
-              {userProfile.firstName} {userProfile.lastName}
-            </h3>
-          </div>
-
-          {/* Profile Details */}
-          <div className="profile-details">
-            {/* First Name */}
-            <div className="profile-field">
-              <label className="profile-label">
-                First Name
-              </label>
-              {isEditing ? (
-                <input
-                  type="text"
-                  value={editForm.firstName || ''}
-                  onChange={(e) => handleInputChange('firstName', e.target.value)}
-                  className="profile-input"
-                />
-              ) : (
-                <div className="profile-field-display">
-                  <FiUser className="profile-field-icon" />
-                  <span className="profile-field-value">
-                    {userProfile.firstName || 'Not provided'}
-                  </span>
+          {loading ? (
+            <div className="profile-loading">Loading...</div>
+          ) : (
+            <>
+              {/* Avatar Section */}
+              <div className="profile-avatar-section">
+                <div className="profile-avatar">
+                  {userProfile.avatar ? (
+                    <img 
+                      src={userProfile.avatar} 
+                      alt="Profile" 
+                      className="profile-avatar-img"
+                    />
+                  ) : (
+                    <FiUser className="profile-avatar-icon" />
+                  )}
                 </div>
-              )}
-            </div>
-
-            {/* Last Name */}
-            <div className="profile-field">
-              <label className="profile-label">
-                Last Name
-              </label>
-              {isEditing ? (
-                <input
-                  type="text"
-                  value={editForm.lastName || ''}
-                  onChange={(e) => handleInputChange('lastName', e.target.value)}
-                  className="profile-input"
-                />
-              ) : (
-                <div className="profile-field-display">
-                  <FiUser className="profile-field-icon" />
-                  <span className="profile-field-value">
-                    {userProfile.lastName || 'Not provided'}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Email */}
-            <div className="profile-field">
-              <label className="profile-label">
-                Email
-              </label>
-              {isEditing ? (
-                <input
-                  type="email"
-                  value={editForm.email || ''}
-                  onChange={(e) => handleInputChange('email', e.target.value)}
-                  className="profile-input"
-                />
-              ) : (
-                <div className="profile-field-display">
-                  <FiMail className="profile-field-icon" />
-                  <span className="profile-field-value">
-                    {userProfile.email || 'Not provided'}
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="profile-actions">
-            {isEditing ? (
-              <div className="profile-edit-actions">
-                <button
-                  onClick={handleCancel}
-                  className="profile-btn profile-btn--cancel"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSave}
-                  className="profile-btn profile-btn--save"
-                >
-                  Save
-                </button>
+                <h3 className="profile-name">
+                  {userProfile.firstName} {userProfile.lastName}
+                </h3>
               </div>
-            ) : (
-              <button
-                onClick={() => setIsEditing(true)}
-                className="profile-btn profile-btn--edit"
-              >
-                <FiEdit3 className="profile-btn-icon" />
-                Edit Profile
-              </button>
-            )}
-          </div>
+
+              {/* Profile Details */}
+              <div className="profile-details">
+                {/* First Name */}
+                <div className="profile-field">
+                  <label className="profile-label">
+                    First Name
+                  </label>
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      value={editForm.firstName || ''}
+                      onChange={(e) => handleInputChange('firstName', e.target.value)}
+                      className="profile-input"
+                      disabled={loading}
+                    />
+                  ) : (
+                    <div className="profile-field-display">
+                      <FiUser className="profile-field-icon" />
+                      <span className="profile-field-value">
+                        {userProfile.firstName || 'Not provided'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Last Name */}
+                <div className="profile-field">
+                  <label className="profile-label">
+                    Last Name
+                  </label>
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      value={editForm.lastName || ''}
+                      onChange={(e) => handleInputChange('lastName', e.target.value)}
+                      className="profile-input"
+                      disabled={loading}
+                    />
+                  ) : (
+                    <div className="profile-field-display">
+                      <FiUser className="profile-field-icon" />
+                      <span className="profile-field-value">
+                        {userProfile.lastName || 'Not provided'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Email */}
+                <div className="profile-field">
+                  <label className="profile-label">
+                    Email
+                  </label>
+                  {isEditing ? (
+                    <input
+                      type="email"
+                      value={editForm.email || ''}
+                      onChange={(e) => handleInputChange('email', e.target.value)}
+                      className="profile-input"
+                      disabled={loading}
+                    />
+                  ) : (
+                    <div className="profile-field-display">
+                      <FiMail className="profile-field-icon" />
+                      <span className="profile-field-value">
+                        {userProfile.email || 'Not provided'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="profile-actions">
+                {isEditing ? (
+                  <div className="profile-edit-actions">
+                    <button
+                      onClick={handleCancel}
+                      className="profile-btn profile-btn--cancel"
+                      disabled={loading}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleSave}
+                      className="profile-btn profile-btn--save"
+                      disabled={loading}
+                    >
+                      {loading ? 'Saving...' : 'Save'}
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setIsEditing(true)}
+                    className="profile-btn profile-btn--edit"
+                    disabled={loading}
+                  >
+                    <FiEdit3 className="profile-btn-icon" />
+                    Edit Profile
+                  </button>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </div>
     </>

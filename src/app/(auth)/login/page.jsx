@@ -16,10 +16,10 @@ export default function Loginpage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  // Redirect if already logged in
+  
   useEffect(() => {
     if (!loading && user) {
-      router.replace("/experimenter"); // or "/admin" - make sure this matches your actual route
+      router.replace("/experimenter"); 
     }
   }, [user, loading, router]);
 
@@ -63,16 +63,16 @@ export default function Loginpage() {
         return;
       }
 
-      // Use context login (which also saves to localStorage)
+      
       login(result.user);
-      showSuccess("Login successful! Redirecting...");
+      showSuccess("Login successfull!!!!");
 
-      // Clear form
+    
       setEmail("");
       setPassword("");
 
       setTimeout(() => {
-        router.replace("/experimenter"); // or "/admin" - make sure this matches your route
+        router.replace("/experimenter"); 
       }, 1200);
       
     } catch (err) {

@@ -1,13 +1,75 @@
+// Updated create experiment page component with edit functionality
 'use client';
 import './page.css';
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useAuth } from '@/app/Authcontext/Authcontext.js';
 
 export default function CreateExperimentPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { user, loading, isAuthenticated } = useAuth();
+  
+  // Check if we're editing an existing experiment
+  const experimentId = searchParams.get('experimentId');
+  const isEditing = !!experimentId;
+
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [loadingExperiment, setLoadingExperiment] = useState(false);
+
+  // Redirect if not authenticated
+  useEffect(() => {
+    if (!loading && !isAuthenticated) {
+      router.replace('/login');
+    }
+  }, [loading, isAuthenticated, router]);
+
+  // Load existing experiment data if editing
+  useEffect(() => {
+    const loadExperimentData = async () => {
+      if (!experimentId || !user?.id) return;
+
+      try {
+        setLoadingExperiment(true);
+        console.log('🔄 Loading experiment data for ID:', experimentId);
+
+        const response = await fetch(`/api/create-experiment?experimentId=${experimentId}`);
+        const result = await response.json();
+
+        if (response.ok) {
+          const experiment = result.experiment;
+          console.log('✅ Loaded experiment:', experiment);
+
+          // Check if user owns this experiment
+          if (experiment.experimenterId !== user.id) {
+            alert('You are not authorized to edit this experiment');
+            router.push('/experimenter');
+            return;
+          }
+
+          // Populate form with existing data
+          setName(experiment.name);
+          setDescription(experiment.description || '');
+        } else {
+          console.error('❌ Failed to load experiment:', result.message);
+          alert('Failed to load experiment data');
+          router.push('/experimenter');
+        }
+      } catch (error) {
+        console.error('❌ Error loading experiment:', error);
+        alert('Error loading experiment data');
+        router.push('/experimenter');
+      } finally {
+        setLoadingExperiment(false);
+      }
+    };
+
+    if (isEditing && user?.id) {
+      loadExperimentData();
+    }
+  }, [experimentId, user?.id, router, isEditing]);
 
   const handleSubmit = async () => {
     if (!name.trim()) {
@@ -15,54 +77,79 @@ export default function CreateExperimentPage() {
       return;
     }
 
-    try {
-      setLoading(true);
+    if (!user?.id) {
+      alert('User not authenticated');
+      return;
+    }
 
-      // ✅ When backend is ready, uncomment the following:
-      /*
+    try {
+      setSubmitting(true);
+
+      const requestData = { 
+        name, 
+        description,
+        experimenterId: user.id
+      };
+
+      // If editing, include experimentId
+      if (isEditing) {
+        requestData.experimentId = experimentId;
+      }
+
+      console.log('📤 Sending request:', requestData);
+
       const response = await fetch('/api/create-experiment', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ name, description }),
+        body: JSON.stringify(requestData),
       });
 
+      const result = await response.json();
+
       if (response.ok) {
-        const experiment = await response.json();
-        
+        console.log('✅ Success:', result);
+
         // Mark step 1 as completed
         if (window.markStepCompleted) {
           await window.markStepCompleted(1);
         }
 
         // Navigate to conditions page with experiment ID
-        router.push(`/create-experiment/conditions?experimentId=${experiment.id}`);
+        const expId = result.experiment.id;
+        router.push(`/create-experiment/conditions?experimentId=${expId}`);
       } else {
-        throw new Error('Failed to create experiment');
+        throw new Error(result.message || 'Failed to save experiment');
       }
-      */
-
-      // 🧪 Temporary mock: simulate success and navigate with dummy ID
-      const dummyExperiment = { id: 'temp123' };
-
-      if (window.markStepCompleted) {
-        await window.markStepCompleted(1);
-      }
-
-      router.push(`/create-experiment/conditions?experimentId=${dummyExperiment.id}`);
 
     } catch (error) {
-      console.error('Error creating experiment:', error);
-      alert('Failed to create experiment. Please try again.');
+      console.error('❌ Error saving experiment:', error);
+      alert(`Failed to save experiment: ${error.message}`);
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
+  // Show loading while checking authentication or loading experiment
+  if (loading || loadingExperiment) {
+    return (
+      <div className="create-experiment-page">
+        <div>Loading...</div>
+      </div>
+    );
+  }
+
+  // Don't render if not authenticated (will redirect)
+  if (!isAuthenticated) {
+    return null;
+  }
+
   return (
     <div className="create-experiment-page">
-      <h1 className="page-heading">Create New Experiment</h1>
+      <h1 className="page-heading">
+        {isEditing ? 'Edit Experiment' : 'Create New Experiment'}
+      </h1>
 
       <div className="experiment-inputs">
         <label className="inputs">Name</label>
@@ -71,7 +158,7 @@ export default function CreateExperimentPage() {
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Experiment Name"
-          disabled={loading}
+          disabled={submitting}
         />
       </div>
 
@@ -82,7 +169,7 @@ export default function CreateExperimentPage() {
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder="Brief Description"
-          disabled={loading}
+          disabled={submitting}
         />
       </div>
 
@@ -90,7 +177,7 @@ export default function CreateExperimentPage() {
         <button
           className="back-button"
           onClick={() => router.back()}
-          disabled={loading}
+          disabled={submitting}
         >
           Back
         </button>
@@ -98,9 +185,9 @@ export default function CreateExperimentPage() {
         <button
           className="create-button"
           onClick={handleSubmit}
-          disabled={!name.trim() || loading}
+          disabled={!name.trim() || submitting}
         >
-          {loading ? 'Creating...' : 'Create'}
+          {submitting ? (isEditing ? 'Updating...' : 'Creating...') : (isEditing ? 'Update' : 'Create')}
         </button>
       </div>
     </div>
