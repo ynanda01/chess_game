@@ -1,5 +1,4 @@
 "use client";
-import React from 'react';
 import './confirmdialog.css';
 
 export default function ConfirmDialog({ show, onClose, onConfirm }) {

@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { FiPlus, FiEdit, FiSettings, FiTrash, FiDownload, FiX, FiPlay, FiPause} from "react-icons/fi";
+import { FiPlus, FiEdit, FiTrash, FiDownload, FiX, FiPlay, FiPause } from "react-icons/fi";
 import { AlertTriangle } from "lucide-react";
 import { useAuth } from "@/app/Authcontext/Authcontext.js";
 import { showSuccess, showError } from "../../../../lib/toast.js";
+import { exportDetailedData } from "../components/exportdata/exportdata.js";
 import "./page.css";
 
 // Custom Confirmation Modal Component
@@ -54,7 +55,7 @@ export default function AdminDashboard() {
   const [experiments, setExperiments] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  // Modal state
+  // Modal states
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [experimentToDelete, setExperimentToDelete] = useState(null);
 
@@ -98,12 +99,9 @@ export default function AdminDashboard() {
 
   const handleCreate = () => router.push("/create-experiment");
 
-  // NEW: Handle edit - redirect to create-experiment with experimentId
   const handleEdit = (experimentId) => {
     router.push(`/create-experiment?experimentId=${experimentId}`);
   };
-
- 
 
   const handleToggleActive = async (id, currentStatus) => {
     try {
@@ -197,45 +195,35 @@ export default function AdminDashboard() {
     setExperimentToDelete(null);
   };
 
-  const handleExport = (id) => {
-    const experiment = experiments.find((exp) => exp.id === id);
-    if (!experiment) return;
+  // Direct export handler - no modal, direct download
+  const handleExportClick = async (experimentId) => {
+    try {
+      // Show loading state
+      const experiment = experiments.find(exp => exp.id === experimentId);
+      showSuccess(`Preparing export for "${experiment?.name}"...`);
 
-    const headers = [
-      "Experiment Name",
-      "Player Name", 
-      "Puzzle",
-      "Correct",
-      "Advice Shown",
-      "Advice Taken",
-      "Time Taken (s)"
-    ];
+      // Fetch complete experiment data with all related data
+      const response = await fetch(`/api/experiments/${experimentId}/detailed`, {
+        headers: {
+          'Content-Type': 'application/json',
+          'user-email': user.email
+        }
+      });
 
-    const rows = (experiment.sessions || [])
-      .flatMap(session =>
-        (session.attempts || []).map(attempt => [
-          experiment.name,
-          session.playerName,
-          attempt.puzzleName,
-          attempt.correct ? "Yes" : "No",
-          attempt.adviceShown ? "Yes" : "No",
-          attempt.adviceTaken ? "Yes" : "No",
-          attempt.timeTaken || ""
-        ])
-      );
-
-    const csvContent = [headers, ...rows]
-      .map(row => row.map(cell => `"${cell}"`).join(","))
-      .join("\n");
-
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", `${experiment.name.replace(/\s+/g, "_")}_data.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      if (response.ok) {
+        const detailedExperiment = await response.json();
+        
+        // Direct export - no modal
+        exportDetailedData(detailedExperiment);
+        showSuccess('Detailed data exported successfully!');
+      } else {
+        const error = await response.json();
+        showError(error.message || 'Failed to fetch experiment data for export');
+      }
+    } catch (error) {
+      console.error('Error fetching experiment data:', error);
+      showError('Network error. Please try again.');
+    }
   };
 
   if (loading) {
@@ -307,7 +295,6 @@ export default function AdminDashboard() {
                       )}
                     </button>
                     
-                    {/* UPDATED: Edit button now redirects to create-experiment flow */}
                     <button 
                       onClick={() => handleEdit(exp.id)} 
                       className="action-btn edit"
@@ -316,13 +303,12 @@ export default function AdminDashboard() {
                       <FiEdit /> Edit
                     </button>
                     
-                    
                     <button 
-                      onClick={() => handleExport(exp.id)} 
+                      onClick={() => handleExportClick(exp.id)} 
                       className="action-btn export"
-                      title="Export experiment data"
+                      title="Export detailed experiment data"
                     >
-                      <FiDownload /> Export
+                      <FiDownload /> Export Data
                     </button>
                     
                     <button 

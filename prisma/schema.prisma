@@ -150,7 +150,7 @@ model PlayerResponse {
 
   move_before_advice   String?        // Optional
   time_before_advice   Int?           // In seconds
-  move_after_advice    String         // Final move submitted
+  move_after_advice    String?         // Final move submitted
   time_after_advice    Int?           // In seconds
 
   advice_shown         Boolean        @default(false)

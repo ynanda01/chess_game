@@ -1,6 +1,5 @@
-
 'use client';
-/* game page code place in the /game/[level]/page.jsx */
+/* game page code place in the /game/[level]/page.jsx - PRODUCTION VERSION */
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
@@ -18,13 +17,21 @@ export default function LevelPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
-  // Game states
+  // Game states with proper move tracking
   const [gameState, setGameState] = useState('waiting'); // 'waiting', 'moved', 'advice-shown', 'submitted'
-  const [userMove, setUserMove] = useState(null);
+  const [moveHistory, setMoveHistory] = useState([]);
+  const [currentMove, setCurrentMove] = useState(null);
   const [userMoveDetails, setUserMoveDetails] = useState(null);
-  const [adviceVisible, setAdviceVisible] = useState(false);
   
-  // Timer states
+  // Move tracking for before/after advice
+  const [moveBeforeAdvice, setMoveBeforeAdvice] = useState(null);
+  const [moveAfterAdvice, setMoveAfterAdvice] = useState(null);
+  const [adviceVisible, setAdviceVisible] = useState(false);
+  const [adviceRequested, setAdviceRequested] = useState(false);
+  const [adviceAlreadyShown, setAdviceAlreadyShown] = useState(false);
+  const [undoUsed, setUndoUsed] = useState(false);
+  
+  // Timer states (hidden from UI but tracked for backend)
   const [preAdviceTime, setPreAdviceTime] = useState(0);
   const [postAdviceTime, setPostAdviceTime] = useState(0);
   const [currentTimer, setCurrentTimer] = useState(0);
@@ -47,16 +54,16 @@ export default function LevelPage() {
       try {
         setLoading(true);
         
-        // Get player session data
-        const storedSessionId = localStorage.getItem('sessionId');
-        const storedPlayerName = localStorage.getItem('playerName');
+        // Get player session data from sessionStorage
+        const storedSessionId = sessionStorage.getItem('sessionId');
+        const storedPlayerName = sessionStorage.getItem('playerName');
         
         if (!storedSessionId || !storedPlayerName) {
           router.push('/');
           return;
         }
         
-        setSessionId(storedSessionId);
+        setSessionId(parseInt(storedSessionId));
         setPlayerName(storedPlayerName);
         
         // Fetch active experiment
@@ -74,7 +81,7 @@ export default function LevelPage() {
         setExperiment(experimentData);
         
         // Find the condition (set) based on level parameter
-        const levelIndex = parseInt(level) - 1; // Convert level (1-5) to index (0-4)
+        const levelIndex = parseInt(level) - 1;
         const selectedCondition = experimentData.conditions[levelIndex];
         
         if (!selectedCondition) {
@@ -85,7 +92,6 @@ export default function LevelPage() {
         setPuzzles(selectedCondition.puzzles);
         
       } catch (err) {
-        console.error('Error loading experiment:', err);
         setError(err.message);
       } finally {
         setLoading(false);
@@ -95,24 +101,45 @@ export default function LevelPage() {
     loadExperimentData();
   }, [level, router]);
 
+  // Reset puzzle state when index changes
+  useEffect(() => {
+    if (puzzles[currentIndex]) {
+      setGameState('waiting');
+      setMoveHistory([]);
+      setCurrentMove(null);
+      setUserMoveDetails(null);
+      
+      // Reset move tracking
+      setMoveBeforeAdvice(null);
+      setMoveAfterAdvice(null);
+      setAdviceVisible(false);
+      setAdviceRequested(false);
+      setAdviceAlreadyShown(false);
+      setUndoUsed(false);
+      
+      // Reset times
+      setPreAdviceTime(0);
+      setPostAdviceTime(0);
+      setCurrentTimer(0);
+      setTimeExceeded(false);
+      
+      // Start timer for new puzzle
+      puzzleStartTimeRef.current = Date.now();
+      if (isTimerEnabled) {
+        startTimer();
+      }
+    }
+  }, [currentIndex, puzzles]);
+
   // Get current puzzle and its settings
   const currentPuzzle = puzzles[currentIndex];
   const sideToMove = currentPuzzle ? (currentPuzzle.fen.includes(' w ') ? 'White' : 'Black') : '';
   
-  // Determine timer settings (condition overrides experiment defaults)
+  // Determine timer settings
   const isTimerEnabled = condition ? 
     (condition.timerEnabled !== null ? condition.timerEnabled : experiment?.timerEnabled) : false;
   const timeLimit = condition ? 
     (condition.timeLimit !== null ? condition.timeLimit : experiment?.timeLimit) : null;
-
-  // Start timer when puzzle begins
-  useEffect(() => {
-    if (gameState === 'waiting' && currentPuzzle) {
-      startTimer();
-      puzzleStartTimeRef.current = Date.now();
-      setTimeExceeded(false);
-    }
-  }, [currentIndex, gameState, currentPuzzle]);
 
   // Timer function
   const startTimer = useCallback(() => {
@@ -150,37 +177,99 @@ export default function LevelPage() {
     };
   }, []);
 
+  // Handle move submission with proper before/after advice tracking
   const handleMoveSubmit = useCallback(async (move, moveDetails) => {
-    // Record pre-advice time
-    const preTime = Math.floor((Date.now() - puzzleStartTimeRef.current) / 1000);
-    setPreAdviceTime(preTime);
+    // Calculate time taken for this move
+    const moveTime = Math.floor((Date.now() - puzzleStartTimeRef.current) / 1000);
     
-    stopTimer();
-    setUserMove(move);
+    // Create move record
+    const moveRecord = {
+      move: move,
+      moveDetails: moveDetails,
+      time_taken: moveTime,
+      timestamp: Date.now(),
+      was_undone: false
+    };
+    
+    // Add to move history
+    setMoveHistory(prev => [...prev, moveRecord]);
+    setCurrentMove(moveRecord);
     setUserMoveDetails(moveDetails);
+    
+    // Determine if this is before or after advice
+    if (!adviceAlreadyShown) {
+      // This is the first move, before any advice shown
+      setMoveBeforeAdvice(move);
+      setPreAdviceTime(moveTime);
+      setMoveAfterAdvice(null);
+    } else {
+      // This is a move after advice was shown
+      setMoveAfterAdvice(move);
+      const postTime = Math.floor((Date.now() - adviceShownTimeRef.current) / 1000);
+      setPostAdviceTime(postTime);
+    }
+    
+    // Stop timer
+    stopTimer();
     setGameState('moved');
     
-    // Auto-show advice after 1 second
+    // Auto-show advice after 1 second if advice exists AND not already shown
     setTimeout(() => {
-      setGameState('advice-shown');
-      setAdviceVisible(true);
-      adviceShownTimeRef.current = Date.now();
-      
-      // Start post-advice timer
-      if (isTimerEnabled) {
-        startTimer();
+      if (currentPuzzle.advice && !adviceAlreadyShown) {
+        setGameState('advice-shown');
+        setAdviceVisible(true);
+        setAdviceAlreadyShown(true);
+        adviceShownTimeRef.current = Date.now();
+        
+        // Start post-advice timer
+        if (isTimerEnabled) {
+          startTimer();
+        }
+      } else {
+        // No advice available OR advice already shown
+        setGameState('advice-shown');
       }
     }, 1000);
-  }, [isTimerEnabled, stopTimer, startTimer]);
+  }, [currentPuzzle, isTimerEnabled, stopTimer, startTimer, adviceAlreadyShown]);
 
+  // Handle undo with proper state reset
   const handleUndo = useCallback(() => {
+    setUndoUsed(true);
+    
+    // Mark the last move as undone in history
+    if (currentMove) {
+      setMoveHistory(prev => 
+        prev.map(move => 
+          move.timestamp === currentMove.timestamp 
+            ? { ...move, was_undone: true }
+            : move
+        )
+      );
+    }
+    
+    // Reset move tracking based on which move we're undoing
+    if (adviceAlreadyShown && moveAfterAdvice) {
+      // We're undoing an "after advice" move
+      setMoveAfterAdvice(null);
+      setPostAdviceTime(0);
+    } else if (!adviceAlreadyShown && moveBeforeAdvice) {
+      // We're undoing a "before advice" move
+      setMoveBeforeAdvice(null);
+      setPreAdviceTime(0);
+      setMoveAfterAdvice(null);
+    }
+    
+    // Reset current move state
     setGameState('waiting');
-    setUserMove(null);
+    setCurrentMove(null);
     setUserMoveDetails(null);
     
-    // Reset and restart pre-advice timer
-    setPreAdviceTime(0);
-    setPostAdviceTime(0);
+    // Don't hide advice if it was already shown
+    if (!adviceAlreadyShown) {
+      setAdviceVisible(false);
+    }
+    
+    // Reset current timer
     setCurrentTimer(0);
     puzzleStartTimeRef.current = Date.now();
     
@@ -188,38 +277,64 @@ export default function LevelPage() {
       stopTimer();
       startTimer();
     }
-  }, [isTimerEnabled, stopTimer, startTimer]);
+  }, [currentMove, isTimerEnabled, stopTimer, startTimer, adviceAlreadyShown, moveBeforeAdvice, moveAfterAdvice]);
 
+  // Handle submit move with proper data tracking
   const handleSubmitMove = useCallback(async () => {
-    // Record post-advice time
-    if (adviceShownTimeRef.current) {
-      const postTime = Math.floor((Date.now() - adviceShownTimeRef.current) / 1000);
-      setPostAdviceTime(postTime);
+    if (!sessionId || !currentPuzzle) {
+      alert('Session error: Missing session or puzzle data. Please refresh and try again.');
+      return;
     }
     
     stopTimer();
     setGameState('submitted');
     
-    // Prepare data to send to backend
+    // Use the tracked moves directly
+    let finalMoveBeforeAdvice = moveBeforeAdvice;
+    let finalMoveAfterAdvice = moveAfterAdvice;
+    let finalPreAdviceTime = preAdviceTime;
+    let finalPostAdviceTime = postAdviceTime;
+    
+    // Edge case handling if we have a current move but no proper tracking
+    if (currentMove && !finalMoveBeforeAdvice && !finalMoveAfterAdvice) {
+      if (adviceAlreadyShown) {
+        finalMoveAfterAdvice = currentMove.move;
+        if (adviceShownTimeRef.current) {
+          finalPostAdviceTime = Math.floor((Date.now() - adviceShownTimeRef.current) / 1000);
+        }
+      } else {
+        finalMoveBeforeAdvice = currentMove.move;
+        finalPreAdviceTime = Math.floor((Date.now() - puzzleStartTimeRef.current) / 1000);
+      }
+    }
+    
+    // Determine if move matches advice
+    const finalMove = finalMoveAfterAdvice || finalMoveBeforeAdvice;
+    const moveMatchesAdvice = currentPuzzle.correct_move && finalMove === currentPuzzle.correct_move;
+    
+    // Prepare complete data for backend
     const responseData = {
-      sessionId: sessionId,
-      puzzleId: currentPuzzle.id,
-      moveBeforeAdvice: null, // Since we auto-show advice after move
-      timeBeforeAdvice: preAdviceTime,
-      moveAfterAdvice: userMove,
-      timeAfterAdvice: adviceShownTimeRef.current ? 
-        Math.floor((Date.now() - adviceShownTimeRef.current) / 1000) : 0,
-      adviceShown: true,
-      adviceRequested: false,
-      moveMatchesAdvice: userMove === currentPuzzle.correct_move,
-      undoUsed: false,
+      sessionId: parseInt(sessionId),
+      puzzleId: parseInt(currentPuzzle.id),
+      moveBeforeAdvice: finalMoveBeforeAdvice,
+      timeBeforeAdvice: finalPreAdviceTime,
+      moveAfterAdvice: finalMoveAfterAdvice,
+      timeAfterAdvice: finalPostAdviceTime,
+      adviceShown: adviceVisible || adviceAlreadyShown,
+      adviceRequested: adviceRequested,
+      moveMatchesAdvice: moveMatchesAdvice,
+      undoUsed: undoUsed,
       timeExceeded: timeExceeded,
-      skipped: false
+      skipped: false,
+      moves: moveHistory.map((move, index) => ({
+        move: move.move,
+        time_taken: move.time_taken,
+        was_undone: move.was_undone
+      }))
     };
     
     try {
-      // Send response to backend
-      await fetch('/api/player-responses', {
+      const response = await fetch('/api/player-responses', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -227,16 +342,31 @@ export default function LevelPage() {
         body: JSON.stringify(responseData),
       });
       
-      console.log('Response saved:', responseData);
+      const result = await response.json();
+      
+      if (!response.ok) {
+        if (response.status === 409) {
+          // Response already exists for this puzzle
+        } else if (response.status === 404 && result.message === 'Session not found') {
+          alert('Session error: Your session was not found. Please restart the game.');
+          router.push('/');
+          return;
+        } else {
+          throw new Error(result.message || 'Failed to save response');
+        }
+      }
+      
     } catch (error) {
-      console.error('Error saving response:', error);
+      alert('Warning: Your response may not have been saved. Please continue.');
     }
     
     // Auto advance to next puzzle after 2 seconds
     setTimeout(() => {
       handleNextPuzzle();
     }, 2000);
-  }, [sessionId, currentPuzzle, preAdviceTime, userMove, timeExceeded, stopTimer]);
+  }, [sessionId, currentPuzzle, moveBeforeAdvice, moveAfterAdvice, preAdviceTime, postAdviceTime,
+      currentMove, timeExceeded, stopTimer, adviceVisible, adviceAlreadyShown, adviceRequested, 
+      undoUsed, moveHistory, router]);
 
   const handleNextPuzzle = useCallback(() => {
     stopTimer();
@@ -248,53 +378,89 @@ export default function LevelPage() {
     }
     
     // Move to next puzzle
-    setGameState('waiting');
-    setUserMove(null);
-    setUserMoveDetails(null);
-    setAdviceVisible(false);
-    setPreAdviceTime(0);
-    setPostAdviceTime(0);
-    setCurrentTimer(0);
-    setTimeExceeded(false);
     setCurrentIndex(prev => prev + 1);
   }, [stopTimer, currentIndex, puzzles.length, router]);
 
+  // Handle skip with proper time recording
   const handleSkipPuzzle = useCallback(async () => {
-    // Record skip in database
+    if (!sessionId || !currentPuzzle) {
+      return;
+    }
+
+    // Calculate total time spent on this puzzle before skipping
+    const totalTimeSpent = Math.floor((Date.now() - puzzleStartTimeRef.current) / 1000);
+    
+    // Stop timer
+    stopTimer();
+
+    // Determine time allocation based on current state
+    let skipPreAdviceTime = preAdviceTime;
+    let skipPostAdviceTime = postAdviceTime;
+    
+    if (!adviceAlreadyShown) {
+      // Advice was never shown, all time goes to "before advice"
+      skipPreAdviceTime = totalTimeSpent;
+      skipPostAdviceTime = 0;
+    } else if (adviceShownTimeRef.current) {
+      // Advice was shown, calculate post-advice time
+      skipPostAdviceTime = Math.floor((Date.now() - adviceShownTimeRef.current) / 1000);
+    }
+
+    // Record skip in database with proper time tracking
     const responseData = {
-      sessionId: sessionId,
-      puzzleId: currentPuzzle.id,
-      moveBeforeAdvice: null,
-      timeBeforeAdvice: Math.floor((Date.now() - puzzleStartTimeRef.current) / 1000),
-      moveAfterAdvice: '',
-      timeAfterAdvice: 0,
-      adviceShown: false,
-      adviceRequested: false,
+      sessionId: parseInt(sessionId),
+      puzzleId: parseInt(currentPuzzle.id),
+      moveBeforeAdvice: moveBeforeAdvice,
+      timeBeforeAdvice: skipPreAdviceTime,
+      moveAfterAdvice: moveAfterAdvice || '',
+      timeAfterAdvice: skipPostAdviceTime,
+      adviceShown: adviceVisible || adviceAlreadyShown,
+      adviceRequested: adviceRequested,
       moveMatchesAdvice: false,
-      undoUsed: false,
+      undoUsed: undoUsed,
       timeExceeded: timeExceeded,
-      skipped: true
+      skipped: true,
+      moves: moveHistory.map((move, index) => ({
+        move: move.move,
+        time_taken: move.time_taken,
+        was_undone: move.was_undone
+      }))
     };
     
     try {
-      await fetch('/api/player-responses', {
+      const response = await fetch('/api/player-responses', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(responseData),
       });
+      
+      const result = await response.json();
+      
+      if (!response.ok && response.status !== 409) {
+        // Silent error handling for skip
+      }
     } catch (error) {
-      console.error('Error saving skip:', error);
+      // Silent error handling for skip
     }
     
+    // Move to next puzzle
     handleNextPuzzle();
-  }, [sessionId, currentPuzzle, timeExceeded, handleNextPuzzle]);
+  }, [sessionId, currentPuzzle, timeExceeded, handleNextPuzzle, adviceVisible, 
+      adviceAlreadyShown, adviceRequested, undoUsed, moveHistory, stopTimer,
+      preAdviceTime, postAdviceTime, moveBeforeAdvice, moveAfterAdvice]);
 
+  // Handle manual advice request
   const handleShowAdvice = useCallback(() => {
-    // Record pre-advice time when manually showing advice
-    const preTime = Math.floor((Date.now() - puzzleStartTimeRef.current) / 1000);
-    setPreAdviceTime(preTime);
+    // If no move made yet, record time spent thinking before requesting advice
+    if (!currentMove) {
+      const preTime = Math.floor((Date.now() - puzzleStartTimeRef.current) / 1000);
+      setPreAdviceTime(preTime);
+    }
+    
+    setAdviceRequested(true);
+    setAdviceAlreadyShown(true);
     
     stopTimer();
     setGameState('advice-shown');
@@ -305,17 +471,42 @@ export default function LevelPage() {
     if (isTimerEnabled) {
       startTimer();
     }
-  }, [isTimerEnabled, stopTimer, startTimer]);
+  }, [currentMove, isTimerEnabled, stopTimer, startTimer]);
 
   // Get highlight squares for advice
   const getHighlightSquares = useCallback(() => {
-    if (!adviceVisible || !currentPuzzle?.advice?.text) return [];
+    if (!adviceVisible || !currentPuzzle?.advice?.text) {
+      return [];
+    }
     
-    const adviceText = currentPuzzle.advice.text;
+    const adviceText = currentPuzzle.advice.text.trim();
     
-    // Handle coordinate notation like "e2e4"
+    // Method 1: Direct coordinate notation like "e2e4"
     if (adviceText.length === 4 && /^[a-h][1-8][a-h][1-8]$/.test(adviceText)) {
       return [adviceText.slice(0, 2), adviceText.slice(2, 4)];
+    }
+    
+    // Method 2: Arrow notation like "Qh6 → g7" or "h6→g7"
+    const arrowMatch = adviceText.match(/([a-h][1-8])\s*(?:→|->|to)\s*([a-h][1-8])/i);
+    if (arrowMatch) {
+      return [arrowMatch[1], arrowMatch[2]];
+    }
+    
+    // Method 3: Extract all square coordinates and use first two
+    const squares = adviceText.match(/[a-h][1-8]/g);
+    if (squares && squares.length >= 2) {
+      return [squares[0], squares[1]];
+    }
+    
+    // Method 4: Single square (destination only)
+    if (squares && squares.length === 1) {
+      return [squares[0]];
+    }
+    
+    // Method 5: Try to parse standard chess notation
+    const pieceMove = adviceText.match(/[KQRBN]?[a-h]?[1-8]?x?([a-h][1-8])(\+|#)?/);
+    if (pieceMove) {
+      return [pieceMove[1]];
     }
     
     return [];
@@ -356,7 +547,7 @@ export default function LevelPage() {
   const getStatusMessage = () => {
     switch (gameState) {
       case 'waiting':
-        return 'Drag and drop a piece to make your move';
+        return adviceVisible ? 'Advice shown. Make your move or submit.' : 'Drag and drop a piece to make your move';
       case 'moved':
         return 'Move made! Analyzing...';
       case 'advice-shown':
@@ -371,7 +562,7 @@ export default function LevelPage() {
   const getStatusColor = () => {
     switch (gameState) {
       case 'waiting':
-        return 'text-blue-300';
+        return adviceVisible ? 'text-green-300' : 'text-blue-300';
       case 'moved':
         return 'text-yellow-300';
       case 'advice-shown':
@@ -437,7 +628,9 @@ export default function LevelPage() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">Set {level}</h1>
-          
+          <p className="text-sm text-gray-400">
+            Session: {sessionId} | Player: {playerName} | Puzzle: {currentPuzzle?.id}
+          </p>
         </div>
         <div className="text-right">
           <p className="text-yellow-300 text-lg">
@@ -452,7 +645,7 @@ export default function LevelPage() {
         </div>
       </div>
 
-      {/* Timer Display */}
+      {/* Timer Display - Only show current timer */}
       {isTimerEnabled && (
         <div className="bg-gray-800 p-4 rounded-lg border-2 border-blue-500">
           <div className="flex justify-between items-center">
@@ -487,23 +680,6 @@ export default function LevelPage() {
                 </div>
               )}
             </div>
-            
-            <div className="text-right text-sm">
-              <div className="flex gap-6">
-                <div>
-                  <p className="text-gray-400">Pre-Advice Time</p>
-                  <p className="text-blue-400 font-semibold">
-                    {preAdviceTime > 0 ? formatTime(preAdviceTime) : '--:--'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-gray-400">Post-Advice Time</p>
-                  <p className="text-green-400 font-semibold">
-                    {postAdviceTime > 0 ? formatTime(postAdviceTime) : '--:--'}
-                  </p>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       )}
@@ -513,16 +689,6 @@ export default function LevelPage() {
         <div className="bg-gray-800 p-3 rounded-lg border border-gray-600">
           <p className="text-gray-400 text-center">
             ⏱️ Timer disabled for this set
-            {preAdviceTime > 0 && (
-              <span className="ml-4 text-blue-400">
-                Pre-advice: {formatTime(preAdviceTime)}
-              </span>
-            )}
-            {postAdviceTime > 0 && (
-              <span className="ml-4 text-green-400">
-                Post-advice: {formatTime(postAdviceTime)}
-              </span>
-            )}
           </p>
         </div>
       )}
@@ -530,11 +696,14 @@ export default function LevelPage() {
       <div className="bg-gray-800 p-4 rounded-lg">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Image src="/human-icon.png" alt="Human" width={32} height={32} />
+            <Image src="/chessplayer.png" alt="Human" width={52} height={52}  className="scale-140 w-auto h-auto"/>
             <div>
               <p className="text-lg font-semibold">{sideToMove} to move</p>
-              {userMove && (
-                <p className="text-blue-300 text-sm">Your move: {userMove}</p>
+              {currentMove && (
+                <p className="text-blue-300 text-sm">Your move: {currentMove.move}</p>
+              )}
+              {undoUsed && (
+                <p className="text-orange-300 text-sm">⚠️ Undo used</p>
               )}
             </div>
           </div>
@@ -561,7 +730,7 @@ export default function LevelPage() {
         </div>
 
         <div className="space-y-4">
-          {gameState === 'waiting' && (
+          {(gameState === 'waiting' && !adviceVisible) && (
             <div className="bg-gray-800 p-6 rounded-lg">
               <h3 className="text-xl font-semibold mb-4">Actions</h3>
               <div className="space-y-3">
@@ -578,20 +747,6 @@ export default function LevelPage() {
                   ⏭️ Skip Puzzle
                 </button>
               </div>
-              <div className="mt-4 p-3 bg-blue-900/20 rounded border border-blue-400">
-                <p className="text-blue-200 text-sm">
-                  <strong>How to play:</strong> Click and drag any of your pieces to a valid square to make a move.
-                  {isTimerEnabled && (
-                    <>
-                      <br />
-                      <strong>Timer:</strong> Your thinking time is being recorded.
-                      {timeLimit && (
-                        <> Time limit: {formatTime(timeLimit)}</>
-                      )}
-                    </>
-                  )}
-                </p>
-              </div>
             </div>
           )}
 
@@ -601,16 +756,11 @@ export default function LevelPage() {
               <div className="space-y-3">
                 <div className="bg-yellow-900/30 p-4 rounded border border-yellow-500">
                   <p className="text-yellow-300">
-                    ♟️ Your move: <strong>{userMove}</strong>
+                    ♟️ Your move: <strong>{currentMove?.move}</strong>
                   </p>
                   {userMoveDetails && (
                     <p className="text-yellow-200 text-sm mt-1">
                       {userMoveDetails.from} → {userMoveDetails.to}
-                    </p>
-                  )}
-                  {preAdviceTime > 0 && (
-                    <p className="text-blue-300 text-sm mt-2">
-                      ⏱️ Thinking time: {formatTime(preAdviceTime)}
                     </p>
                   )}
                 </div>
@@ -622,23 +772,17 @@ export default function LevelPage() {
             </div>
           )}
 
-          {(gameState === 'advice-shown' || adviceVisible) && currentPuzzle.advice && (
+          {/* Show advice panel after move is made (if advice exists) */}
+          {gameState === 'advice-shown' && currentMove && currentPuzzle.advice && (
             <div className="bg-gray-800 p-6 rounded-lg">
               <h3 className="text-xl font-semibold mb-4 text-green-400">Chess Advice</h3>
               
               <div className="space-y-4">
-                {userMove && (
-                  <div className="bg-blue-900/30 p-3 rounded border border-blue-500">
-                    <p className="text-blue-300 text-sm">
-                      Your move: {userMove}
-                      {preAdviceTime > 0 && (
-                        <span className="ml-2 text-blue-400">
-                          (⏱️ {formatTime(preAdviceTime)})
-                        </span>
-                      )}
-                    </p>
-                  </div>
-                )}
+                <div className="bg-blue-900/30 p-3 rounded border border-blue-500">
+                  <p className="text-blue-300 text-sm">
+                    Your move: {currentMove.move}
+                  </p>
+                </div>
 
                 <div className="bg-green-900/30 p-4 rounded border border-green-500">
                   <p className="text-green-400 font-semibold">
@@ -679,14 +823,34 @@ export default function LevelPage() {
                   </div>
                 )}
 
-                {gameState === 'advice-shown' && (
-                  <button
-                    onClick={handleSubmitMove}
-                    className="w-full bg-green-600 hover:bg-green-700 px-4 py-3 rounded-lg font-semibold transition-colors"
-                  >
-                    ✅ Submit Move
-                  </button>
-                )}
+                <button
+                  onClick={handleSubmitMove}
+                  className="w-full bg-green-600 hover:bg-green-700 px-4 py-3 rounded-lg font-semibold transition-colors"
+                >
+                  ✅ Submit Move
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Simple submit panel when no advice is available */}
+          {gameState === 'advice-shown' && currentMove && !currentPuzzle.advice && (
+            <div className="bg-gray-800 p-6 rounded-lg">
+              <h3 className="text-xl font-semibold mb-4 text-blue-400">Your Move</h3>
+              
+              <div className="space-y-4">
+                <div className="bg-blue-900/30 p-3 rounded border border-blue-500">
+                  <p className="text-blue-300 text-sm">
+                    Move: {currentMove.move}
+                  </p>
+                </div>
+
+                <button
+                  onClick={handleSubmitMove}
+                  className="w-full bg-green-600 hover:bg-green-700 px-4 py-3 rounded-lg font-semibold transition-colors"
+                >
+                  ✅ Submit Move
+                </button>
               </div>
             </div>
           )}
@@ -697,20 +861,6 @@ export default function LevelPage() {
               <div className="text-center space-y-4">
                 <div className="bg-purple-900/30 p-4 rounded border border-purple-500">
                   <p className="text-purple-300">✨ Great job! Moving to next puzzle...</p>
-                  {(preAdviceTime > 0 || postAdviceTime > 0) && (
-                    <div className="mt-3 text-sm space-y-1">
-                      {preAdviceTime > 0 && (
-                        <p className="text-blue-300">
-                          Pre-advice time: {formatTime(preAdviceTime)}
-                        </p>
-                      )}
-                      {postAdviceTime > 0 && (
-                        <p className="text-green-300">
-                          Post-advice time: {formatTime(postAdviceTime)}
-                        </p>
-                      )}
-                    </div>
-                  )}
                 </div>
                 <div className="flex items-center justify-center">
                   <div className="animate-pulse rounded-full h-3 w-3 bg-purple-400 mr-2"></div>

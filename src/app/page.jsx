@@ -1,3 +1,4 @@
+/*player login page */
 'use client';
 
 import { useState } from 'react';
@@ -5,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import Image from 'next/image';
 import Manualchessboard from '../components/manualchessboard.jsx';
+import { showSuccess, showError } from '../../lib/toast.js'; // Import your toast functions
 
 export default function HomePage() {
   const router = useRouter();
@@ -13,7 +15,7 @@ export default function HomePage() {
 
   const handleEnter = async () => {
     if (!playerName.trim()) {
-      alert('Please enter your name');
+      showError('Please enter your name');
       return;
     }
 
@@ -30,7 +32,7 @@ export default function HomePage() {
 
       if (!res.ok) {
         const data = await res.json();
-        alert(data.message || 'Session creation failed'); // Fixed: Use 'message' instead of 'error'
+        showError(data.message || 'Session creation failed'); // Use toast instead of alert
         setLoading(false);
         return;
       }
@@ -46,16 +48,16 @@ export default function HomePage() {
 
       // Show success message for new vs existing sessions
       if (data.existing) {
-        alert(`Welcome back, ${data.playerName}! Continuing your session.`);
+        showSuccess(`Welcome back, ${data.playerName}! Continuing your session.`);
       } else {
-        alert(`Welcome, ${data.playerName}! Starting new session in experiment: ${data.experimentName}`);
+        showSuccess(`Welcome, ${data.playerName}! Starting new session in experiment: ${data.experimentName}`);
       }
 
       // Redirect user to welcome or game page
       router.push('/welcome');
     } catch (err) {
       console.error('Session creation error:', err);
-      alert('Something went wrong. Please try again.');
+      showError('Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
