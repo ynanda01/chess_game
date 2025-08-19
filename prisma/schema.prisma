@@ -30,10 +30,7 @@ model Experimenters {
 model Experiment {
   id             Int           @id @default(autoincrement())
   name           String
-  description    String
-  adviceformat   String        // Global advice format for the experiment
-  timerEnabled   Boolean       // Global timer setting
-  timeLimit      Int?          // Global time limit
+  description    String 
   isActive       Boolean       @default(false)
 
   experimenter   Experimenters @relation(fields: [experimenterId], references: [id], onDelete: Cascade)

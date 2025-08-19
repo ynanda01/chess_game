@@ -79,10 +79,6 @@ export async function POST(request) {
         data: {
           name: name.trim(),
           description: description?.trim() || '',
-          // Removed conditionName - no longer exists in schema
-          adviceformat: 'TBD',
-          timerEnabled: false,
-          timeLimit: null,
           experimenterId: experimenterId,
         },
       });

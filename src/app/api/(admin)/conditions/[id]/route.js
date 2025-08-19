@@ -22,9 +22,6 @@ export async function GET(request, { params }) {
             id: true, 
             name: true, 
             description: true,
-            adviceformat: true,
-            timerEnabled: true,
-            timeLimit: true,
             experimenterId: true
           }
         },
