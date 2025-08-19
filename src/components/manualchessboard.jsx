@@ -4,7 +4,7 @@ import { Chess } from "chess.js";
 
 export default function Manualchessboard({ fen }) {
   const game = new Chess();
-
+  
   try {
     game.load(fen);
   } catch (err) {
@@ -21,6 +21,7 @@ export default function Manualchessboard({ fen }) {
   };
 
   const files = ["a", "b", "c", "d", "e", "f", "g", "h"];
+  const ranks = [8, 7, 6, 5, 4, 3, 2, 1];
   const squares = [];
 
   for (let rank = 8; rank >= 1; rank--) {
@@ -41,16 +42,17 @@ export default function Manualchessboard({ fen }) {
         <div
           key={square}
           style={{
-            width: 60,
-            height: 60,
+            width: 50,
+            height: 50,
             backgroundColor: bg,
             display: "flex",
             justifyContent: "center",
             alignItems: "center",
+            position: "relative",
           }}
         >
           {pieceImage && (
-            <img src={pieceImage} alt={piece?.type} style={{ width: 40, height: 40 }} />
+            <img src={pieceImage} alt={piece?.type} style={{ width: 35, height: 35 }} />
           )}
         </div>
       );
@@ -58,20 +60,64 @@ export default function Manualchessboard({ fen }) {
   }
 
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(8, 50px)",
-        gridTemplateRows: "repeat(8, 50px)",
-        marginTop: "1rem",
-        border: "1px solid #000",
-        borderRadius: "8px",
-        width: "400px",
-        height: "400px",
-        overflow: "hidden",
-      }}
-    >
-      {squares}
+    <div style={{ display: "flex", alignItems: "flex-start", marginTop: "1rem" }}>
+      {/* Left side rank numbers */}
+      <div style={{ display: "flex", flexDirection: "column", marginRight: "4px" }}>
+        {ranks.map(rank => (
+          <div
+            key={`rank-${rank}`}
+            style={{
+              height: "50px",
+              width: "20px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "14px",
+              fontWeight: "bold",
+              color: "#333",
+            }}
+          >
+            {rank}
+          </div>
+        ))}
+      </div>
+
+      {/* Main board container */}
+      <div>
+        {/* Chess board */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(8, 50px)",
+            gridTemplateRows: "repeat(8, 50px)",
+            border: "2px solid #333",
+            borderRadius: "8px",
+          }}
+        >
+          {squares}
+        </div>
+
+        {/* Bottom letters */}
+        <div style={{ display: "flex", marginTop: "4px" }}>
+          {files.map(file => (
+            <div
+              key={`bottom-${file}`}
+              style={{
+                width: "50px",
+                height: "20px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "14px",
+                fontWeight: "bold",
+                color: "#333",
+              }}
+            >
+              {file}
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

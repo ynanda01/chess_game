@@ -5,14 +5,10 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/app/Authcontext/Authcontext.js';
 import { 
   FaEdit, 
-  FaTrash, 
   FaPlus, 
-  FaEye, 
-  FaEyeSlash, 
   FaClock, 
   FaPuzzlePiece, 
   FaLightbulb,
-  FaArrowLeft,
   FaCheckCircle,
   FaExclamationTriangle,
   FaCheck,

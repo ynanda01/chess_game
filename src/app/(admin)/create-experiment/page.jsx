@@ -1,4 +1,3 @@
-// Updated create experiment page component with edit functionality
 'use client';
 import './page.css';
 import { useState, useEffect } from 'react';
@@ -10,7 +9,7 @@ export default function CreateExperimentPage() {
   const searchParams = useSearchParams();
   const { user, loading, isAuthenticated } = useAuth();
   
-  // Check if we're editing an existing experiment
+  // This code will check if we are editing an existing experiment
   const experimentId = searchParams.get('experimentId');
   const isEditing = !!experimentId;
 
@@ -26,39 +25,35 @@ export default function CreateExperimentPage() {
     }
   }, [loading, isAuthenticated, router]);
 
-  // Load existing experiment data if editing
+  // Below code is Load existing experiment data if editing
   useEffect(() => {
     const loadExperimentData = async () => {
       if (!experimentId || !user?.id) return;
 
       try {
         setLoadingExperiment(true);
-        console.log('🔄 Loading experiment data for ID:', experimentId);
-
         const response = await fetch(`/api/create-experiment?experimentId=${experimentId}`);
         const result = await response.json();
 
         if (response.ok) {
           const experiment = result.experiment;
-          console.log('✅ Loaded experiment:', experiment);
 
-          // Check if user owns this experiment
+
+          // Below part of the code check if user owns this experiment
           if (experiment.experimenterId !== user.id) {
             alert('You are not authorized to edit this experiment');
             router.push('/experimenter');
             return;
           }
 
-          // Populate form with existing data
+          //Below part populate form with existing data
           setName(experiment.name);
           setDescription(experiment.description || '');
         } else {
-          console.error('❌ Failed to load experiment:', result.message);
           alert('Failed to load experiment data');
           router.push('/experimenter');
         }
       } catch (error) {
-        console.error('❌ Error loading experiment:', error);
         alert('Error loading experiment data');
         router.push('/experimenter');
       } finally {
@@ -91,12 +86,10 @@ export default function CreateExperimentPage() {
         experimenterId: user.id
       };
 
-      // If editing, include experimentId
+      // Incase when we are editing, below part include experimentId
       if (isEditing) {
         requestData.experimentId = experimentId;
       }
-
-      console.log('📤 Sending request:', requestData);
 
       const response = await fetch('/api/create-experiment', {
         method: 'POST',
@@ -109,14 +102,13 @@ export default function CreateExperimentPage() {
       const result = await response.json();
 
       if (response.ok) {
-        console.log('✅ Success:', result);
 
         // Mark step 1 as completed
         if (window.markStepCompleted) {
           await window.markStepCompleted(1);
         }
 
-        // Navigate to conditions page with experiment ID
+        // below part of the code navigate to conditions page with experiment ID
         const expId = result.experiment.id;
         router.push(`/create-experiment/conditions?experimentId=${expId}`);
       } else {
@@ -124,7 +116,6 @@ export default function CreateExperimentPage() {
       }
 
     } catch (error) {
-      console.error('❌ Error saving experiment:', error);
       alert(`Failed to save experiment: ${error.message}`);
     } finally {
       setSubmitting(false);
@@ -176,7 +167,7 @@ export default function CreateExperimentPage() {
       <div className="buttons">
         <button
           className="back-button"
-          onClick={() => router.back()}
+          onClick={() => router.push("/experimenter")}
           disabled={submitting}
         >
           Back
