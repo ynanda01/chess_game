@@ -1,5 +1,5 @@
 'use client';
-/* game page code place in the /game/[level]/page.jsx - PRODUCTION VERSION */
+/* game page code place in the /game/[level]/page.jsx - UPDATED FOR COUNTERBALANCING */
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
@@ -47,6 +47,9 @@ export default function LevelPage() {
   // Session data
   const [sessionId, setSessionId] = useState(null);
   const [playerName, setPlayerName] = useState('');
+  
+  // NEW: Counterbalancing debug info
+  const [counterbalancingInfo, setCounterbalancingInfo] = useState(null);
 
   // Load experiment data and session info
   useEffect(() => {
@@ -59,6 +62,7 @@ export default function LevelPage() {
         const storedPlayerName = sessionStorage.getItem('playerName');
         
         if (!storedSessionId || !storedPlayerName) {
+          console.error('No session data found, redirecting to home');
           router.push('/');
           return;
         }
@@ -66,32 +70,50 @@ export default function LevelPage() {
         setSessionId(parseInt(storedSessionId));
         setPlayerName(storedPlayerName);
         
-        // Fetch active experiment
-        const response = await fetch('/api/experiments/active');
+        console.log(`Loading experiment for player: ${storedPlayerName}, level: ${level}`);
+        
+        // Fetch active experiment with player context for counterbalancing
+        const response = await fetch(`/api/experiments/active?playerName=${encodeURIComponent(storedPlayerName)}`);
         if (!response.ok) {
           throw new Error('No active experiment found');
         }
         
         const experimentData = await response.json();
+        console.log('Experiment data received:', experimentData);
         
         if (!experimentData.active) {
           throw new Error('No active experiment available');
         }
         
+        // Store counterbalancing debug info
+        if (experimentData.debug) {
+          setCounterbalancingInfo(experimentData.debug);
+          console.log('Counterbalancing info:', experimentData.debug);
+        }
+        
         setExperiment(experimentData);
         
         // Find the condition (set) based on level parameter
+        // Frontend still uses level index, but gets randomised conditions
         const levelIndex = parseInt(level) - 1;
         const selectedCondition = experimentData.conditions[levelIndex];
         
         if (!selectedCondition) {
-          throw new Error(`Set ${level} not found`);
+          throw new Error(`Set ${level} not found (available sets: 1-${experimentData.conditions.length})`);
         }
+        
+        console.log(`Selected condition for Set ${level}:`, {
+          conditionId: selectedCondition.id,
+          conditionName: selectedCondition.name,
+          originalOrder: selectedCondition.originalOrder,
+          puzzleCount: selectedCondition.puzzles.length
+        });
         
         setCondition(selectedCondition);
         setPuzzles(selectedCondition.puzzles);
         
       } catch (err) {
+        console.error('Error loading experiment data:', err);
         setError(err.message);
       } finally {
         setLoading(false);
@@ -104,6 +126,12 @@ export default function LevelPage() {
   // Reset puzzle state when index changes
   useEffect(() => {
     if (puzzles[currentIndex]) {
+      console.log(`Starting puzzle ${currentIndex + 1}:`, {
+        puzzleId: puzzles[currentIndex].id,
+        fen: puzzles[currentIndex].fen,
+        hasAdvice: !!puzzles[currentIndex].advice
+      });
+      
       setGameState('waiting');
       setMoveHistory([]);
       setCurrentMove(null);
@@ -179,6 +207,8 @@ export default function LevelPage() {
 
   // Handle move submission with proper before/after advice tracking
   const handleMoveSubmit = useCallback(async (move, moveDetails) => {
+    console.log('Move submitted:', { move, moveDetails });
+    
     // Calculate time taken for this move
     const moveTime = Math.floor((Date.now() - puzzleStartTimeRef.current) / 1000);
     
@@ -202,11 +232,13 @@ export default function LevelPage() {
       setMoveBeforeAdvice(move);
       setPreAdviceTime(moveTime);
       setMoveAfterAdvice(null);
+      console.log('Move recorded as BEFORE advice:', move);
     } else {
       // This is a move after advice was shown
       setMoveAfterAdvice(move);
       const postTime = Math.floor((Date.now() - adviceShownTimeRef.current) / 1000);
       setPostAdviceTime(postTime);
+      console.log('Move recorded as AFTER advice:', move);
     }
     
     // Stop timer
@@ -216,6 +248,7 @@ export default function LevelPage() {
     // Auto-show advice after 1 second if advice exists AND not already shown
     setTimeout(() => {
       if (currentPuzzle.advice && !adviceAlreadyShown) {
+        console.log('Auto-showing advice for puzzle:', currentPuzzle.id);
         setGameState('advice-shown');
         setAdviceVisible(true);
         setAdviceAlreadyShown(true);
@@ -227,6 +260,7 @@ export default function LevelPage() {
         }
       } else {
         // No advice available OR advice already shown
+        console.log('No advice to show or already shown');
         setGameState('advice-shown');
       }
     }, 1000);
@@ -234,6 +268,7 @@ export default function LevelPage() {
 
   // Handle undo with proper state reset
   const handleUndo = useCallback(() => {
+    console.log('Undo requested');
     setUndoUsed(true);
     
     // Mark the last move as undone in history
@@ -252,11 +287,13 @@ export default function LevelPage() {
       // We're undoing an "after advice" move
       setMoveAfterAdvice(null);
       setPostAdviceTime(0);
+      console.log('Undoing AFTER advice move');
     } else if (!adviceAlreadyShown && moveBeforeAdvice) {
       // We're undoing a "before advice" move
       setMoveBeforeAdvice(null);
       setPreAdviceTime(0);
       setMoveAfterAdvice(null);
+      console.log('Undoing BEFORE advice move');
     }
     
     // Reset current move state
@@ -286,6 +323,8 @@ export default function LevelPage() {
       return;
     }
     
+    console.log('Submitting move for puzzle:', currentPuzzle.id);
+    
     stopTimer();
     setGameState('submitted');
     
@@ -311,6 +350,15 @@ export default function LevelPage() {
     // Determine if move matches advice
     const finalMove = finalMoveAfterAdvice || finalMoveBeforeAdvice;
     const moveMatchesAdvice = currentPuzzle.correct_move && finalMove === currentPuzzle.correct_move;
+    
+    console.log('Final move analysis:', {
+      finalMoveBeforeAdvice,
+      finalMoveAfterAdvice,
+      correctMove: currentPuzzle.correct_move,
+      moveMatchesAdvice,
+      finalPreAdviceTime,
+      finalPostAdviceTime
+    });
     
     // Prepare complete data for backend
     const responseData = {
@@ -343,10 +391,12 @@ export default function LevelPage() {
       });
       
       const result = await response.json();
+      console.log('Response submission result:', result);
       
       if (!response.ok) {
         if (response.status === 409) {
-          // Response already exists for this puzzle
+          console.warn('Response already exists for this puzzle');
+          // Continue anyway
         } else if (response.status === 404 && result.message === 'Session not found') {
           alert('Session error: Your session was not found. Please restart the game.');
           router.push('/');
@@ -357,6 +407,7 @@ export default function LevelPage() {
       }
       
     } catch (error) {
+      console.error('Error saving response:', error);
       alert('Warning: Your response may not have been saved. Please continue.');
     }
     
@@ -373,19 +424,23 @@ export default function LevelPage() {
     
     if (currentIndex + 1 >= puzzles.length) {
       // All puzzles completed in this set
+      console.log(`Completed all puzzles in Set ${level}`);
       router.push('/welcome');
       return;
     }
     
     // Move to next puzzle
+    console.log(`Moving to puzzle ${currentIndex + 2} of ${puzzles.length}`);
     setCurrentIndex(prev => prev + 1);
-  }, [stopTimer, currentIndex, puzzles.length, router]);
+  }, [stopTimer, currentIndex, puzzles.length, router, level]);
 
   // Handle skip with proper time recording
   const handleSkipPuzzle = useCallback(async () => {
     if (!sessionId || !currentPuzzle) {
       return;
     }
+
+    console.log('Skipping puzzle:', currentPuzzle.id);
 
     // Calculate total time spent on this puzzle before skipping
     const totalTimeSpent = Math.floor((Date.now() - puzzleStartTimeRef.current) / 1000);
@@ -439,10 +494,12 @@ export default function LevelPage() {
       const result = await response.json();
       
       if (!response.ok && response.status !== 409) {
-        // Silent error handling for skip
+        console.warn('Error saving skip response:', result);
+        // Continue anyway
       }
     } catch (error) {
-      // Silent error handling for skip
+      console.warn('Error saving skip response:', error);
+      // Continue anyway
     }
     
     // Move to next puzzle
@@ -453,6 +510,8 @@ export default function LevelPage() {
 
   // Handle manual advice request
   const handleShowAdvice = useCallback(() => {
+    console.log('Manual advice request');
+    
     // If no move made yet, record time spent thinking before requesting advice
     if (!currentMove) {
       const preTime = Math.floor((Date.now() - puzzleStartTimeRef.current) / 1000);
@@ -584,6 +643,7 @@ export default function LevelPage() {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400 mx-auto mb-4"></div>
           <p className="text-lg">Loading experiment...</p>
+          <p className="text-sm text-gray-400 mt-2">Player: {playerName || 'Unknown'} | Set: {level}</p>
         </div>
       </div>
     );
@@ -595,6 +655,7 @@ export default function LevelPage() {
       <div className="flex items-center justify-center min-h-screen bg-gray-900 text-white">
         <div className="text-center">
           <p className="text-red-400 text-lg mb-4">Error: {error}</p>
+          <p className="text-gray-400 text-sm mb-4">Player: {playerName} | Set: {level}</p>
           <button
             onClick={() => router.push('/welcome')}
             className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded"
@@ -612,6 +673,7 @@ export default function LevelPage() {
       <div className="flex items-center justify-center min-h-screen bg-gray-900 text-white">
         <div className="text-center">
           <p className="text-lg">No puzzles available for this set.</p>
+          <p className="text-gray-400 text-sm">Condition: {condition?.name} | Puzzles: {puzzles.length}</p>
           <button
             onClick={() => router.push('/welcome')}
             className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded mt-4"
@@ -630,7 +692,19 @@ export default function LevelPage() {
           <h1 className="text-3xl font-bold">Set {level}</h1>
           <p className="text-sm text-gray-400">
             Session: {sessionId} | Player: {playerName} | Puzzle: {currentPuzzle?.id}
+            {/* Enhanced debug info for counterbalancing */}
+            {condition && (
+              <span className="ml-2 text-yellow-400">
+                (Condition: {condition.name} #{condition.id})
+              </span>
+            )}
           </p>
+          {/* Show counterbalancing debug info if available */}
+          {counterbalancingInfo && (
+            <p className="text-xs text-purple-400 mt-1">
+              Debug: {counterbalancingInfo.conditionOrder.map(c => `${c.name}(#${c.id})`).join(' → ')}
+            </p>
+          )}
         </div>
         <div className="text-right">
           <p className="text-yellow-300 text-lg">

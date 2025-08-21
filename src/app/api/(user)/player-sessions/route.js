@@ -1,17 +1,37 @@
-// app/api/player-sessions/route.js
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-// POST - Create or get existing player session
+// Randomised helper
+// below code rotates conditions across sessions so that each one gets a equal share to remove bias.
+// Useful when running multiple participants to avoid bias in order of presentation.
+
+function getRandomisedConditionOrder(conditions, sessionCount) {
+  const numConditions = conditions.length;
+  if (numConditions === 0) return [];
+  
+  //Figure out where to start rotating the conditions for this session
+  const offset = sessionCount % numConditions;
+  
+  // Create rotated array shift conditions by offset positions
+  const rotation = [
+    ...conditions.slice(offset),
+    ...conditions.slice(0, offset)
+  ];
+  
+  return rotation;
+}
+
+// POST - Create a new player session
+
 export async function POST(request) {
   try {
     const { playerName } = await request.json();
 
     if (!playerName || playerName.trim().length === 0) {
       return NextResponse.json({
-        message: 'Player name is required'
+        message: 'The Player name is required'
       }, { status: 400 });
     }
 
@@ -20,14 +40,14 @@ export async function POST(request) {
       where: { isActive: true },
       include: {
         conditions: {
-          orderBy: { order: 'asc' }
+          orderBy: { id: 'asc' }
         }
       }
     });
 
     if (!activeExperiment) {
       return NextResponse.json({
-        message: 'No active experiment available'
+        message: 'Oh, No active experiment available'
       }, { status: 404 });
     }
 
@@ -53,14 +73,19 @@ export async function POST(request) {
       });
     }
 
-    // Assign player to a condition (simple round-robin or random assignment)
-    // For now, we'll use round-robin based on existing sessions count
+    // Get session count for randomised condition order
     const sessionCount = await prisma.playerSession.count({
       where: { experimentId: activeExperiment.id }
     });
     
-    const conditionIndex = sessionCount % activeExperiment.conditions.length;
-    const assignedCondition = activeExperiment.conditions[conditionIndex];
+    // Apply randomised to get rotation condition order
+    const randomisedConditions = getRandomisedConditionOrder(
+      activeExperiment.conditions, 
+      sessionCount
+    );
+    
+    // For the first level (Set 1), assign the first condition from randomised order
+    const assignedCondition = randomisedConditions[0];
 
     // Create new session
     const session = await prisma.playerSession.create({
@@ -68,20 +93,31 @@ export async function POST(request) {
         player_name: playerName.trim(),
         experimentId: activeExperiment.id,
         conditionId: assignedCondition.id,
-        display_level: 1 // Start at level 1
+        display_level: 1
       }
     });
 
-    // Create session experiment order for randomized puzzle presentation (optional)
-    // For now, we'll keep puzzles in their defined order within conditions
-    const sessionOrder = await prisma.sessionExperimentOrder.create({
-      data: {
+    // Delete any existing session order for this player in the current experiment
+    await prisma.sessionExperimentOrder.deleteMany({
+      where: {
         player_Name: playerName.trim(),
-        experimentId: activeExperiment.id,
-        conditionId: assignedCondition.id,
-        order: 1
+        experimentId: activeExperiment.id
       }
     });
+
+    // Below part is to create session orders
+    for (let index = 0; index < randomisedConditions.length; index++) {
+      const condition = randomisedConditions[index];
+      
+      await prisma.sessionExperimentOrder.create({
+        data: {
+          player_Name: playerName.trim(),
+          experimentId: activeExperiment.id,
+          conditionId: condition.id,
+          order: index + 1
+        }
+      });
+    }
 
     return NextResponse.json({
       message: 'Session created successfully',
@@ -92,13 +128,22 @@ export async function POST(request) {
       conditionId: session.conditionId,
       conditionName: assignedCondition.name,
       displayLevel: session.display_level,
-      existing: false
+      existing: false,
+      counterbalancing: {
+        sessionNumber: sessionCount + 1,
+        conditionOrder: randomisedConditions.map((c, idx) => ({ 
+          set: idx + 1, 
+          conditionId: c.id, 
+          conditionName: c.name 
+        }))
+      }
     }, { status: 201 });
 
   } catch (error) {
     console.error('Session creation error:', error);
     
-    // Handle unique constraint violation (race condition)
+    // Handle unique constraint violation 
+    // If a session for this player already exists, return a 409 Conflict instead of creating a duplicate
     if (error.code === 'P2002') {
       return NextResponse.json({
         message: 'Session already exists for this player'
@@ -156,8 +201,10 @@ export async function GET(request) {
         }
       });
     } else if (playerName) {
-      // Get the most recent session for this player
-      session = await prisma.playerSession.findFirst({
+
+      // Fetch the player's latest session with experiment and response details.
+      // If no session exists, return a 404 error.
+        session = await prisma.playerSession.findFirst({
         where: { player_name: playerName },
         include: {
           experiment: {
@@ -194,7 +241,19 @@ export async function GET(request) {
       }, { status: 404 });
     }
 
-    // Calculate progress
+    // Fetch the player's condition order for this experiment
+    // Ensures tasks/puzzles are presented in the correct counterbalanced sequence to prevent order effects
+    // This is used to maintain the randomised order of conditions across sessions
+
+    const sessionOrders = await prisma.sessionExperimentOrder.findMany({
+      where: {
+        player_Name: session.player_name,
+        experimentId: session.experimentId
+      },
+      orderBy: { order: 'asc' }
+    });
+
+
     const totalResponses = session.responses.length;
     const completedResponses = session.responses.filter(r => !r.skipped).length;
     const skippedResponses = session.responses.filter(r => r.skipped).length;
@@ -224,7 +283,13 @@ export async function GET(request) {
         conditionOrder: response.puzzle.condition.order,
         skipped: response.skipped,
         completedAt: response.completed_at
-      }))
+      })),
+      counterbalancing: {
+        conditionOrder: sessionOrders.map(order => ({
+          set: order.order,
+          conditionId: order.conditionId
+        }))
+      }
     });
 
   } catch (error) {
@@ -235,11 +300,14 @@ export async function GET(request) {
   }
 }
 
-// PUT - Update session (e.g., mark as completed)
+// PUT - Update a player's session
+// Update a player's session  mark it completed, reset completion, or change display level
+// Returns the updated session info so the frontend can reflect changes immediately
 export async function PUT(request) {
   try {
     const { sessionId, completed, displayLevel } = await request.json();
 
+    // check if session id is provided
     if (!sessionId) {
       return NextResponse.json({
         message: 'Session ID is required'
@@ -256,6 +324,8 @@ export async function PUT(request) {
       updateData.display_level = parseInt(displayLevel);
     }
 
+    // Update the session with new data
+    // Include experiment details to return in response
     const session = await prisma.playerSession.update({
       where: { id: parseInt(sessionId) },
       data: updateData,

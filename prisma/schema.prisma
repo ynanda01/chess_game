@@ -71,19 +71,19 @@ model Condition {
   @@map("conditions")
 }
 
-// Randomized Level Order (now includes condition assignment)
+// Randomized Level Order 
 model SessionExperimentOrder {
   id           Int        @id @default(autoincrement())
   player_Name  String
   experiment   Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
   experimentId Int
-  conditionId  Int?       // Optional: assign player to specific condition
+  conditionId  Int        // MAKE SURE THIS IS NOT NULL
   order        Int        // Level number (1–5)
 
   created_at   DateTime   @default(now())
 
-  @@unique([player_Name, experimentId])
-  @@unique([player_Name, order])
+  
+  @@unique([player_Name, experimentId, order])  
   @@map("session_experiment_orders")
 }
 
