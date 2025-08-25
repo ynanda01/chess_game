@@ -1,9 +1,9 @@
 'use client';
-/* game page code place in the /game/[level]/page.jsx - PRODUCTION VERSION */
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Newboard from '../../../../components/Newboard.jsx';
+import './page.css';
 
 export default function LevelPage() {
   const { level } = useParams();
@@ -66,8 +66,8 @@ export default function LevelPage() {
         setSessionId(parseInt(storedSessionId));
         setPlayerName(storedPlayerName);
         
-        // Fetch active experiment
-        const response = await fetch('/api/experiments/active');
+        // Fetch active experiment with player context for counterbalancing
+        const response = await fetch(`/api/experiments/active?playerName=${encodeURIComponent(storedPlayerName)}`);
         if (!response.ok) {
           throw new Error('No active experiment found');
         }
@@ -85,7 +85,7 @@ export default function LevelPage() {
         const selectedCondition = experimentData.conditions[levelIndex];
         
         if (!selectedCondition) {
-          throw new Error(`Set ${level} not found`);
+          throw new Error(`Set ${level} not found (available sets: 1-${experimentData.conditions.length})`);
         }
         
         setCondition(selectedCondition);
@@ -259,15 +259,10 @@ export default function LevelPage() {
       setMoveAfterAdvice(null);
     }
     
-    // Reset current move state
+    // Reset current move state - go back to waiting
     setGameState('waiting');
     setCurrentMove(null);
     setUserMoveDetails(null);
-    
-    // Don't hide advice if it was already shown
-    if (!adviceAlreadyShown) {
-      setAdviceVisible(false);
-    }
     
     // Reset current timer
     setCurrentTimer(0);
@@ -346,7 +341,7 @@ export default function LevelPage() {
       
       if (!response.ok) {
         if (response.status === 409) {
-          // Response already exists for this puzzle
+          // Continue anyway
         } else if (response.status === 404 && result.message === 'Session not found') {
           alert('Session error: Your session was not found. Please restart the game.');
           router.push('/');
@@ -439,10 +434,10 @@ export default function LevelPage() {
       const result = await response.json();
       
       if (!response.ok && response.status !== 409) {
-        // Silent error handling for skip
+        // Continue anyway
       }
     } catch (error) {
-      // Silent error handling for skip
+      // Continue anyway
     }
     
     // Move to next puzzle
@@ -521,20 +516,20 @@ export default function LevelPage() {
 
   // Get timer color based on time limit
   const getTimerColor = () => {
-    if (!timeLimit) return 'text-blue-400';
+    if (!timeLimit) return 'blue';
     const progress = currentTimer / timeLimit;
-    if (progress >= 1) return 'text-red-500';
-    if (progress >= 0.8) return 'text-orange-400';
-    if (progress >= 0.6) return 'text-yellow-400';
-    return 'text-green-400';
+    if (progress >= 1) return 'red';
+    if (progress >= 0.8) return 'orange';
+    if (progress >= 0.6) return 'yellow';
+    return 'green';
   };
 
   // Get confidence color based on percentage
   const getConfidenceColor = (confidence) => {
     const percentage = confidence * 100;
-    if (percentage >= 70) return 'bg-green-500';
-    if (percentage >= 40) return 'bg-yellow-500';
-    return 'bg-red-500';
+    if (percentage >= 70) return 'bg-green';
+    if (percentage >= 40) return 'bg-yellow';
+    return 'bg-red';
   };
 
   // Parse advice format
@@ -547,7 +542,7 @@ export default function LevelPage() {
   const getStatusMessage = () => {
     switch (gameState) {
       case 'waiting':
-        return adviceVisible ? 'Advice shown. Make your move or submit.' : 'Drag and drop a piece to make your move';
+        return adviceAlreadyShown ? 'Advice shown. Make your move or submit.' : 'Drag and drop a piece to make your move';
       case 'moved':
         return 'Move made! Analyzing...';
       case 'advice-shown':
@@ -562,15 +557,15 @@ export default function LevelPage() {
   const getStatusColor = () => {
     switch (gameState) {
       case 'waiting':
-        return adviceVisible ? 'text-green-300' : 'text-blue-300';
+        return adviceAlreadyShown ? 'green' : 'blue';
       case 'moved':
-        return 'text-yellow-300';
+        return 'yellow';
       case 'advice-shown':
-        return 'text-green-300';
+        return 'green';
       case 'submitted':
-        return 'text-purple-300';
+        return 'purple';
       default:
-        return 'text-gray-300';
+        return 'gray';
     }
   };
 
@@ -580,10 +575,11 @@ export default function LevelPage() {
   // Loading state
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-900 text-white">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400 mx-auto mb-4"></div>
-          <p className="text-lg">Loading experiment...</p>
+      <div className="loading">
+        <div>
+          <div className="spinner"></div>
+          <p className="big-text">Loading experiment...</p>
+          <p className="small-text">Player: {playerName || 'Unknown'} | Set: {level}</p>
         </div>
       </div>
     );
@@ -592,12 +588,13 @@ export default function LevelPage() {
   // Error state
   if (error) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-900 text-white">
-        <div className="text-center">
-          <p className="text-red-400 text-lg mb-4">Error: {error}</p>
+      <div className="loading">
+        <div>
+          <p className="error">Error: {error}</p>
+          <p className="small-text">Player: {playerName} | Set: {level}</p>
           <button
             onClick={() => router.push('/welcome')}
-            className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded"
+            className="btn btn-skip"
           >
             Back to Home
           </button>
@@ -609,12 +606,13 @@ export default function LevelPage() {
   // No puzzle state
   if (!currentPuzzle) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-900 text-white">
-        <div className="text-center">
-          <p className="text-lg">No puzzles available for this set.</p>
+      <div className="loading">
+        <div>
+          <p className="big-text">No puzzles available for this set.</p>
+          <p className="small-text">Condition: {condition?.name} | Puzzles: {puzzles.length}</p>
           <button
             onClick={() => router.push('/welcome')}
-            className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded mt-4"
+            className="btn btn-skip"
           >
             Back to Home
           </button>
@@ -624,278 +622,320 @@ export default function LevelPage() {
   }
 
   return (
-    <div className="space-y-6 text-white max-w-6xl mx-auto p-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">Set {level}</h1>
-          <p className="text-sm text-gray-400">
-            Session: {sessionId} | Player: {playerName} | Puzzle: {currentPuzzle?.id}
-          </p>
-        </div>
-        <div className="text-right">
-          <p className="text-yellow-300 text-lg">
-            Puzzle {currentIndex + 1} of {puzzles.length}
-          </p>
-          <div className="w-48 bg-gray-700 rounded-full h-2 mt-2">
-            <div
-              className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-              style={{ width: `${((currentIndex + 1) / puzzles.length) * 100}%` }}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Timer Display - Only show current timer */}
-      {isTimerEnabled && (
-        <div className="bg-gray-800 p-4 rounded-lg border-2 border-blue-500">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-4">
-              <div className="text-center">
-                <p className="text-sm text-gray-300">Current Timer</p>
-                <p className={`text-2xl font-bold ${getTimerColor()}`}>
-                  {formatTime(currentTimer)}
-                  {timeLimit && (
-                    <span className="text-sm text-gray-400 ml-2">
-                      / {formatTime(timeLimit)}
-                    </span>
-                  )}
-                </p>
-                {timeExceeded && (
-                  <p className="text-red-400 text-sm font-semibold">⚠️ Time Exceeded!</p>
-                )}
-              </div>
-              
-              {timeLimit && (
-                <div className="flex-1 max-w-xs">
-                  <div className="w-full bg-gray-700 rounded-full h-3">
-                    <div
-                      className={`h-3 rounded-full transition-all duration-300 ${
-                        timeExceeded ? 'bg-red-500' : 
-                        currentTimer / timeLimit >= 0.8 ? 'bg-orange-500' :
-                        currentTimer / timeLimit >= 0.6 ? 'bg-yellow-500' : 'bg-green-500'
-                      }`}
-                      style={{ width: `${Math.min((currentTimer / timeLimit) * 100, 100)}%` }}
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Timer Disabled Message */}
-      {!isTimerEnabled && (
-        <div className="bg-gray-800 p-3 rounded-lg border border-gray-600">
-          <p className="text-gray-400 text-center">
-            ⏱️ Timer disabled for this set
-          </p>
-        </div>
-      )}
-
-      <div className="bg-gray-800 p-4 rounded-lg">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Image src="/chessplayer.png" alt="Human" width={52} height={52}  className="scale-140 w-auto h-auto"/>
-            <div>
-              <p className="text-lg font-semibold">{sideToMove} to move</p>
-              {currentMove && (
-                <p className="text-blue-300 text-sm">Your move: {currentMove.move}</p>
-              )}
-              {undoUsed && (
-                <p className="text-orange-300 text-sm">⚠️ Undo used</p>
-              )}
-            </div>
-          </div>
-          <div className="text-right">
-            <p className={`text-sm font-medium ${getStatusColor()}`}>
-              {getStatusMessage()}
+    <div className="wrapper">
+      <div className="main">
+        <div className="header">
+          <div>
+            <h1 className="title">Set {level}</h1>
+            <p className="info">
+              Session: {sessionId} | Player: {playerName} | Puzzle: {currentPuzzle?.id}
             </p>
           </div>
-        </div>
-      </div>
-
-      <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <Newboard
-            key={`puzzle-${currentIndex}`}
-            fen={currentPuzzle.fen}
-            boardWidth={500}
-            onMoveSubmit={handleMoveSubmit}
-            onUndo={handleUndo}
-            isLocked={gameState === 'submitted'}
-            highlightSquares={highlightSquares}
-            showAdvice={adviceVisible}
-          />
-        </div>
-
-        <div className="space-y-4">
-          {(gameState === 'waiting' && !adviceVisible) && (
-            <div className="bg-gray-800 p-6 rounded-lg">
-              <h3 className="text-xl font-semibold mb-4">Actions</h3>
-              <div className="space-y-3">
-                <button
-                  onClick={handleShowAdvice}
-                  className="w-full bg-yellow-600 hover:bg-yellow-700 px-4 py-3 rounded-lg font-semibold transition-colors"
-                >
-                  💡 Show Advice
-                </button>
-                <button
-                  onClick={handleSkipPuzzle}
-                  className="w-full bg-gray-600 hover:bg-gray-700 px-4 py-3 rounded-lg font-semibold transition-colors"
-                >
-                  ⏭️ Skip Puzzle
-                </button>
-              </div>
+          <div className="progress">
+            <p className="progress-text">
+              Puzzle {currentIndex + 1} of {puzzles.length}
+            </p>
+            <div className="bar">
+              <div
+                className="fill"
+                style={{ width: `${((currentIndex + 1) / puzzles.length) * 100}%` }}
+              />
             </div>
-          )}
+          </div>
+        </div>
 
-          {gameState === 'moved' && (
-            <div className="bg-gray-800 p-6 rounded-lg">
-              <h3 className="text-xl font-semibold mb-4 text-yellow-400">Move Analysis</h3>
-              <div className="space-y-3">
-                <div className="bg-yellow-900/30 p-4 rounded border border-yellow-500">
-                  <p className="text-yellow-300">
-                    ♟️ Your move: <strong>{currentMove?.move}</strong>
+        {/* Timer Display - Only show current timer */}
+        {isTimerEnabled && (
+          <div className="timer">
+            <div className="timer-row">
+              <div className="timer-left">
+                <div className="clock">
+                  <p className="clock-label">Current Timer</p>
+                  <p className={`clock-time ${getTimerColor()}`}>
+                    {formatTime(currentTimer)}
+                    {timeLimit && (
+                      <span className="time-left">
+                        / {formatTime(timeLimit)}
+                      </span>
+                    )}
                   </p>
-                  {userMoveDetails && (
-                    <p className="text-yellow-200 text-sm mt-1">
-                      {userMoveDetails.from} → {userMoveDetails.to}
-                    </p>
+                  {timeExceeded && (
+                    <p className="warning">⚠️ Time Exceeded!</p>
                   )}
                 </div>
-                <div className="flex items-center justify-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-400"></div>
-                  <span className="ml-2 text-yellow-300">Analyzing position...</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Show advice panel after move is made (if advice exists) */}
-          {gameState === 'advice-shown' && currentMove && currentPuzzle.advice && (
-            <div className="bg-gray-800 p-6 rounded-lg">
-              <h3 className="text-xl font-semibold mb-4 text-green-400">Chess Advice</h3>
-              
-              <div className="space-y-4">
-                <div className="bg-blue-900/30 p-3 rounded border border-blue-500">
-                  <p className="text-blue-300 text-sm">
-                    Your move: {currentMove.move}
-                  </p>
-                </div>
-
-                <div className="bg-green-900/30 p-4 rounded border border-green-500">
-                  <p className="text-green-400 font-semibold">
-                    🎯 Recommended: {currentPuzzle.advice.text}
-                  </p>
-                </div>
-
-                {adviceFormat.includes('confidence') && currentPuzzle.advice.confidence && (
-                  <div>
-                    <div className="flex justify-between items-center mb-2">
-                      <p className="text-sm text-gray-300">
-                        Confidence
-                      </p>
-                      <p className="text-sm font-bold text-white">
-                        {Math.round(currentPuzzle.advice.confidence * 100)}%
-                      </p>
-                    </div>
-                    <div className="w-full bg-gray-700 rounded-full h-4">
+                
+                {timeLimit && (
+                  <div className="timer-bar">
+                    <div className="timer-track">
                       <div
-                        className={`h-4 rounded-full transition-all duration-500 ${getConfidenceColor(currentPuzzle.advice.confidence)}`}
-                        style={{ width: `${currentPuzzle.advice.confidence * 100}%` }}
+                        className={`timer-progress ${
+                          timeExceeded ? 'bg-red' : 
+                          currentTimer / timeLimit >= 0.8 ? 'bg-orange' :
+                          currentTimer / timeLimit >= 0.6 ? 'bg-yellow' : 'bg-green'
+                        }`}
+                        style={{ width: `${Math.min((currentTimer / timeLimit) * 100, 100)}%` }}
                       />
                     </div>
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+        )}
 
-                {adviceFormat.includes('explanation') && currentPuzzle.advice.explanation && (
-                  <div className="bg-purple-900/20 p-4 rounded border border-purple-400">
-                    <p className="text-purple-200 italic">💭 {currentPuzzle.advice.explanation}</p>
-                  </div>
+        {/* Timer Disabled Message */}
+        {!isTimerEnabled && (
+          <div className="no-timer">
+            <p>⏱️ Timer disabled for this set</p>
+          </div>
+        )}
+
+        <div className="status">
+          <div className="status-row">
+            <div className="player">
+              <Image src="/chessplayer.png" alt="Human" width={52} height={52} className="avatar"/>
+              <div>
+                <p className="player-name">{sideToMove} to move</p>
+                {currentMove && (
+                  <p className="move">Your move: {currentMove.move}</p>
                 )}
-
-                {adviceFormat.includes('reliability') && currentPuzzle.advice.reliability && (
-                  <div className="bg-orange-900/20 p-3 rounded border border-orange-400">
-                    <p className="text-orange-200 text-sm">
-                      📊 Reliability: <span className="font-semibold">{currentPuzzle.advice.reliability}</span>
-                    </p>
-                  </div>
+                {undoUsed && (
+                  <p className="undo-warning">⚠️ Undo used</p>
                 )}
-
-                <button
-                  onClick={handleSubmitMove}
-                  className="w-full bg-green-600 hover:bg-green-700 px-4 py-3 rounded-lg font-semibold transition-colors"
-                >
-                  ✅ Submit Move
-                </button>
               </div>
             </div>
-          )}
-
-          {/* Simple submit panel when no advice is available */}
-          {gameState === 'advice-shown' && currentMove && !currentPuzzle.advice && (
-            <div className="bg-gray-800 p-6 rounded-lg">
-              <h3 className="text-xl font-semibold mb-4 text-blue-400">Your Move</h3>
-              
-              <div className="space-y-4">
-                <div className="bg-blue-900/30 p-3 rounded border border-blue-500">
-                  <p className="text-blue-300 text-sm">
-                    Move: {currentMove.move}
-                  </p>
-                </div>
-
-                <button
-                  onClick={handleSubmitMove}
-                  className="w-full bg-green-600 hover:bg-green-700 px-4 py-3 rounded-lg font-semibold transition-colors"
-                >
-                  ✅ Submit Move
-                </button>
-              </div>
+            <div>
+              <p className={`message ${getStatusColor()}`}>
+                {getStatusMessage()}
+              </p>
             </div>
-          )}
-
-          {gameState === 'submitted' && (
-            <div className="bg-gray-800 p-6 rounded-lg">
-              <h3 className="text-xl font-semibold mb-4 text-purple-400">Move Submitted!</h3>
-              <div className="text-center space-y-4">
-                <div className="bg-purple-900/30 p-4 rounded border border-purple-500">
-                  <p className="text-purple-300">✨ Great job! Moving to next puzzle...</p>
-                </div>
-                <div className="flex items-center justify-center">
-                  <div className="animate-pulse rounded-full h-3 w-3 bg-purple-400 mr-2"></div>
-                  <div className="animate-pulse rounded-full h-3 w-3 bg-purple-400 mr-2"></div>
-                  <div className="animate-pulse rounded-full h-3 w-3 bg-purple-400"></div>
-                </div>
-                <button
-                  onClick={handleNextPuzzle}
-                  className="bg-purple-600 hover:bg-purple-700 px-6 py-2 rounded-lg font-semibold transition-colors"
-                >
-                  Next Puzzle Now →
-                </button>
-              </div>
-            </div>
-          )}
+          </div>
         </div>
-      </div>
 
-      <div className="bg-gray-800 p-4 rounded-lg">
-        <div className="grid md:grid-cols-4 gap-4 text-sm">
-          <div className="flex items-center text-blue-300">
-            <span className="w-3 h-3 bg-blue-500 rounded-full mr-2"></span>
-            Waiting for move
+        <div className="grid">
+          <div className="board">
+            <Newboard
+              key={`puzzle-${currentIndex}`}
+              fen={currentPuzzle.fen}
+              boardWidth={500}
+              onMoveSubmit={handleMoveSubmit}
+              onUndo={handleUndo}
+              isLocked={gameState === 'submitted'}
+              highlightSquares={highlightSquares}
+              showAdvice={adviceVisible || adviceAlreadyShown}
+            />
           </div>
-          <div className="flex items-center text-yellow-300">
-            <span className="w-3 h-3 bg-yellow-500 rounded-full mr-2"></span>
-            Analyzing move
+
+          <div className="panel-content">
+            {/* Actions panel - only show when waiting and no advice shown yet */}
+            {(gameState === 'waiting' && !adviceAlreadyShown) && (
+              <div className="panel">
+                <h3>Actions</h3>
+                <div className="actions">
+                  {/* Only show "Show Advice" button if current puzzle has advice */}
+                  {currentPuzzle?.advice && (
+                    <button
+                      onClick={handleShowAdvice}
+                      className="btn btn-advice"
+                    >
+                      💡 Show Advice
+                    </button>
+                  )}
+                  <button
+                    onClick={handleSkipPuzzle}
+                    className="btn btn-skip"
+                  >
+                    ⏭️ Skip Puzzle
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Advice panel for waiting state when advice was already shown (after undo) */}
+            {gameState === 'waiting' && adviceAlreadyShown && currentPuzzle.advice && (
+              <div className="panel advice">
+                <h3>Chess Advice</h3>
+                
+                <div className="panel-content">
+                  <div className="recommendation">
+                    <p>🎯 Recommended: {currentPuzzle.advice.text}</p>
+                  </div>
+
+                  {/* CONFIDENCE */}
+                  {(adviceFormat.includes('full') || adviceFormat.includes('confidence')) && currentPuzzle.advice.confidence && (
+                    <div>
+                      <div className="confidence-row">
+                        <p className="confidence-label">Confidence</p>
+                        <p className="confidence-score">
+                          {Math.round(currentPuzzle.advice.confidence * 1)}%
+                        </p>
+                      </div>
+                      <div className="confidence-bar">
+                        <div
+                          className={`confidence-fill ${getConfidenceColor(currentPuzzle.advice.confidence)}`}
+                          style={{ width: `${currentPuzzle.advice.confidence * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* EXPLANATION */}
+                  {(adviceFormat.includes('full') || adviceFormat.includes('explanation')) && currentPuzzle.advice.explanation && (
+                    <div className="explanation">
+                      <p>💭 {currentPuzzle.advice.explanation}</p>
+                    </div>
+                  )}
+
+                  <div className="msg-info">
+                    <p>💡 Advice is shown. Make your move on the board.</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {gameState === 'moved' && (
+              <div className="panel analysis">
+                <h3>Move Analysis</h3>
+                <div className="panel-content">
+                  <div className="move-box">
+                    <p className="move-text">
+                      ♟️ Your move: <strong>{currentMove?.move}</strong>
+                    </p>
+                    {userMoveDetails && (
+                      <p className="move-detail">
+                        {userMoveDetails.from} → {userMoveDetails.to}
+                      </p>
+                    )}
+                  </div>
+                  <div className="analyzing">
+                    <div className="analyzing-spinner"></div>
+                    <span>Analyzing position...</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Show advice panel after move is made OR when manually requested */}
+            {gameState === 'advice-shown' && currentPuzzle.advice && (
+              <div className="panel advice">
+                <h3>Chess Advice</h3>
+                
+                <div className="panel-content">
+                  {/* Only show "Your move" section if a move was actually made */}
+                  {currentMove && (
+                    <div className="move-display">
+                      <p>Your move: {currentMove.move}</p>
+                    </div>
+                  )}
+
+                  <div className="recommendation">
+                    <p>🎯 Recommended: {currentPuzzle.advice.text}</p>
+                  </div>
+
+                  {/* CONFIDENCE - Show if format is 'full' OR includes 'confidence' */}
+                  {(adviceFormat.includes('full') || adviceFormat.includes('confidence')) && currentPuzzle.advice.confidence && (
+                    <div>
+                      <div className="confidence-row">
+                        <p className="confidence-label">Confidence</p>
+                        <p className="confidence-score">
+                          {Math.round(currentPuzzle.advice.confidence * 1)}%
+                        </p>
+                      </div>
+                      <div className="confidence-bar">
+                        <div
+                          className={`confidence-fill ${getConfidenceColor(currentPuzzle.advice.confidence)}`}
+                          style={{ width: `${currentPuzzle.advice.confidence * 1}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* EXPLANATION - Show if format is 'full' OR includes 'explanation' */}
+                  {(adviceFormat.includes('full') || adviceFormat.includes('explanation')) && currentPuzzle.advice.explanation && (
+                    <div className="explanation">
+                      <p>💭 {currentPuzzle.advice.explanation}</p>
+                    </div>
+                  )}
+
+                  {/* Show different buttons based on whether a move was made */}
+                  {currentMove ? (
+                    <button
+                      onClick={handleSubmitMove}
+                      className="btn btn-submit"
+                    >
+                      ✅ Submit Move
+                    </button>
+                  ) : (
+                    <div className="msg-wait">
+                      <p>💡 Advice shown. Now make your move on the board.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Simple submit panel when no advice is available */}
+            {gameState === 'advice-shown' && currentMove && !currentPuzzle.advice && (
+              <div className="panel your-move">
+                <h3>Your Move</h3>
+                
+                <div className="panel-content">
+                  <div className="move-display">
+                    <p>Move: {currentMove.move}</p>
+                  </div>
+
+                  <button
+                    onClick={handleSubmitMove}
+                    className="btn btn-submit"
+                  >
+                    ✅ Submit Move
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {gameState === 'submitted' && (
+              <div className="panel submitted">
+                <h3>Move Submitted!</h3>
+                <div className="submitted-content">
+                  <div className="success-msg">
+                    <p>✨ Great job! Moving to next puzzle...</p>
+                  </div>
+                  <div className="dots">
+                    <div className="dot"></div>
+                    <div className="dot"></div>
+                    <div className="dot"></div>
+                  </div>
+                  <button
+                    onClick={handleNextPuzzle}
+                    className="btn btn-next"
+                  >
+                    Next Puzzle Now →
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
-          <div className="flex items-center text-green-300">
-            <span className="w-3 h-3 bg-green-500 rounded-full mr-2"></span>
-            Advice shown
-          </div>
-          <div className="flex items-center text-purple-300">
-            <span className="w-3 h-3 bg-purple-500 rounded-full mr-2"></span>
-            Move submitted
+        </div>
+
+        <div className="legend">
+          <div className="legend-grid">
+            <div className="legend-item">
+              <span className="legend-dot bg-blue"></span>
+              Waiting for move
+            </div>
+            <div className="legend-item">
+              <span className="legend-dot bg-yellow"></span>
+              Analyzing move
+            </div>
+            <div className="legend-item">
+              <span className="legend-dot bg-green"></span>
+              Advice shown
+            </div>
+            <div className="legend-item">
+              <span className="legend-dot bg-purple"></span>
+              Move submitted
+            </div>
           </div>
         </div>
       </div>

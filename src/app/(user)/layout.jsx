@@ -99,12 +99,15 @@ export default function UserLayout({ children }) {
               <strong>How to Play Chess Puzzles:</strong>
             </p>
             <div className="space-y-2 text-gray-300">
-              <p>• Check which side to move (White or Black) before starting the move.</p>
-              <p>• Solve each chess puzzles by finding the best move</p>
-              <p>• Select different Sets from the sidebar</p>
-              <p>• Each set has puzzles to solve</p>
-              <p>• Each puzzle has a specific solution to discover</p>
-              <p>• Use the "logout" button to logout when finished</p>
+              <p>1. Check which side to move (White or Black) before starting the move.</p>
+              <p>2. Solve each chess puzzles by finding the best move</p>
+              <p>3. Select different Sets from the sidebar</p>
+              <p>4. Each set has puzzles to solve</p>
+              <p>5. Each puzzle has a specific solution to discover</p>
+              <p>6. Need a hint? Check the advice to help you solve the puzzles!</p>
+              <p>7. Use the "logout" button to logout when finished</p>
+              <p>8. Enjoy and improve your chess skills!</p>
+              
             </div>
             <p className="text-yellow-300 text-sm mt-4 flex items-center gap-2">
               <Lightbulb className="w-4 h-4 text-yellow-400" />

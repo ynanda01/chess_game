@@ -1,0 +1,151 @@
+.loading_container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+}
+
+.loading_text {
+  color: white;
+  font-size: 1.25rem;
+}
+
+.welcome_page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  color: white;
+  padding: 2rem;
+}
+
+.welcome_container {
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+
+.header {
+  text-align: center;
+  margin-bottom: 3rem;
+}
+
+.title {
+  font-size: 2.5rem;
+  font-weight: bold;
+  margin-bottom: 1.5rem;
+ 
+}
+
+.subtitle {
+  font-size: 1.25rem;
+  margin-bottom: 2rem;
+  color: #d1d5db;
+}
+
+
+.main{
+  display: flex;
+  gap: 3rem;
+  align-items: flex-start;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+
+.chessboard{
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: center;
+}
+
+
+.content{
+  flex: 1;
+  min-width: 400px;
+  max-width: 600px;
+}
+
+
+.info_card {
+  background-color: #2a3d2f;
+  border-radius: 0.5rem;
+  padding: 2rem;
+  margin-bottom: 2rem;
+}
+
+.card_title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 1.5rem;
+  color: #fef08a;
+  text-align: center;
+}
+
+.features_list {
+  color: #d1d5db;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.features_list p {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.features_list strong {
+  color: white;
+}
+
+
+.pro_tip {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background-color: #1f2a1f;
+  border-radius: 0.375rem;
+  border-left: 4px solid #a90707;
+  border-right: 4px solid #9307ac;
+  border-top: 4px solid #3408c5;
+  border-bottom: 4px solid #cea904;
+}
+
+.tip_text {
+  color: #86efac;
+  font-weight: 600;
+  margin: 0;
+  line-height: 1.6;
+}
+
+
+.footer_text {
+  text-align: center;
+  color: #d1d5db;
+  margin-top: 1rem;
+}
+
+.footer_text p {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.feature_item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.icon {
+  width: 1.5rem;
+  height: 1.5rem;
+  flex-shrink: 0;
+}
+
+
+.icon.yellow { color: #facc15; }
+.icon.blue   { color: #60a5fa; }
+.icon.green  { color: #22c55e; }
+.icon.purple { color: #cee95f; }
+

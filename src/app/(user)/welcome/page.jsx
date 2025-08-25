@@ -1,8 +1,9 @@
 "use client";
-
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { Puzzle, Layers, BarChart3, Lightbulb } from "lucide-react";
 import Manualchessboard from '../../../components/manualchessboard.jsx';
+import './page.css';
 
 export default function WelcomePage() {
   const router = useRouter();
@@ -11,8 +12,9 @@ export default function WelcomePage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const initializeWelcome = async () => {
-      // Get player info from storage
+    const welcome = async () => {
+      // First, let's check if the player is actually logged in by looking the player name
+      // If they're not logged in, we will redirect back to the login page
       const storedPlayerName = sessionStorage.getItem('playerName');
       const storedSessionId = sessionStorage.getItem('sessionId');
       
@@ -24,27 +26,27 @@ export default function WelcomePage() {
       setPlayerName(storedPlayerName);
       
       try {
-        // Fetch session info to get experiment details
+        // Now lets fetch the session info to get experiment details
         if (storedSessionId) {
           const sessionResponse = await fetch(`/api/player-sessions?sessionId=${storedSessionId}`);
           if (sessionResponse.ok) {
             const sessionData = await sessionResponse.json();
             
-            // Set experiment info from session data
+            // Set experiment info from api player session
+            
             setExperiment({
-              name: sessionData.experimentName || "Chess Puzzle Game",
-              experimenterName: sessionData.experimenterName || "Game Master",
-              // We'll get conditions count from the session or default to 3
-              conditionsCount: 3 // You can adjust this based on your actual experiment setup
+              name: sessionData.experimentName || "Human Decision Making Experiment",
+              experimenterName: sessionData.experimenterName || "Researcher",
+              conditionsCount: 3 // We can adjust this based on our actual conditions in the experiment
             });
           }
         }
       } catch (err) {
         console.error('Error loading session:', err);
-        // Set default experiment
+        // In case if api fails, set deault experiment info
         setExperiment({
-          name: "Chess Puzzle Game",
-          experimenterName: "Game Master",
+          name: "Human Decision Making Experiment",
+          experimenterName: "Researcher",
           conditionsCount: 3
         });
       } finally {
@@ -52,65 +54,72 @@ export default function WelcomePage() {
       }
     };
 
-    initializeWelcome();
+    welcome();
   }, [router]);
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-white text-xl">Loading...</div>
+      <div className="loading_container">
+        <div className="loading_text">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen text-white p-8">
-      <div className="max-w-4xl mx-auto text-center">
-        <h1 className="text-4xl font-bold mb-6">
-          Welcome to the Chess Puzzle Game!
-        </h1>
-        
-        <p className="text-xl mb-8 text-gray-200">
-          Your chess journey starts here! Check the sidebar for tips or choose a puzzle set to begin your adventure!
-        </p>
-        
-        <div className="flex justify-center mb-8">
-          <Manualchessboard 
-            fen="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" 
-            boardWidth={400}
-          />
-        </div>
-        
-        <div className="bg-[#2a3d2f] rounded-lg p-6 max-w-2xl mx-auto">
-          <h2 className="text-2xl font-semibold mb-4 text-yellow-300">
-            🎯 Ready to Challenge Your Mind?
-          </h2>
-          <div className="text-gray-200 space-y-3">
-            <p>
-              🧩 <strong>Solve engaging chess puzzles</strong> designed to improve your tactical skills
-            </p>
-            <p>
-              🎮 <strong>Multiple difficulty levels</strong> to match your chess expertise
-            </p>
-            <p>
-              ⚡ <strong>Track your progress</strong> as you advance through different puzzle sets
-            </p>
-            <p>
-              💡 <strong>Get helpful hints</strong> when you need a little guidance
-            </p>
-          </div>
-          
-          <div className="mt-6 p-4 bg-[#1f2a1f] rounded border-l-4 border-green-400">
-            <p className="text-green-300 font-semibold">
-              🚀 Pro Tip: Start with Set 1 if you're new to chess puzzles, or jump to any set that matches your skill level!
-            </p>
-          </div>
-        </div>
-        
-        <div className="mt-8 text-gray-300">
-          <p>
-            👈 Look to the sidebar to get started • Click "How to Play?" for instructions • Select any puzzle set to begin!
+    <div className="welcome_page">
+      <div className="welcome_container">
+        {/* Header Section */}
+        <div className="header">
+          <h1 className="title">
+            Welcome to the ChessPuzzle Game!
+          </h1>
+          <p className="subtitle">
+            Your chess journey starts here! Look to the sidebar to get started • Click "How to Play?" for instructions • Select any puzzle set to begin the adventure!
           </p>
+        </div>
+
+        {/* Main Content Layout */}
+        <div className="main">
+          {/* Left Side - chess board */}
+          <div className="chessboard">
+            <Manualchessboard 
+              fen="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" 
+              boardWidth={400}
+            />
+          </div>
+
+          {/* Right Side - content */}
+          <div className="content">
+            <div className="info_card"> 
+              <h2 className="card_title">
+                Ready to Challenge Your Mind?
+              </h2>
+              <div className="features_list">
+                <p className="feature_item">
+                  <Puzzle className="icon yellow" />
+                  <span><strong>Solve engaging chess puzzles</strong> designed to improve your tactical skills</span>
+                </p>
+                <p className="feature_item">
+                  <Layers className="icon blue" />
+                  <span><strong>Multiple difficulty Sets</strong> to match your chess expertise</span>
+                </p>
+                <p className="feature_item">
+                  <BarChart3 className="icon green" />
+                  <span><strong>Track your progress</strong> as you advance through different puzzle sets</span>
+                </p>
+                <p className="feature_item">
+                  <Lightbulb className="icon purple" />
+                  <span><strong>Get helpful advices</strong> when you need a little guidance</span>
+                </p>
+              </div>
+              
+              <div className="pro_tip">
+                <p className="tip_text">
+                  Pro Tip: Start with Set 1 if you're new to chess puzzles, or jump to any set that matches your skill level!
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
