@@ -1,10 +1,8 @@
-// app/api/experiments/[id]/detailed/route.js
-
 import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
-
+// GET - This will get the  detailed experiment data for export
 export async function GET(request, { params }) {
   try {
     const { id } = await params;
@@ -14,7 +12,7 @@ export async function GET(request, { params }) {
       return NextResponse.json({ message: "User email required" }, { status: 401 });
     }
 
-    // Verify the experimenter owns this experiment
+    // this will try to find the experimenter by email in the database via prisma
     const experimenter = await prisma.experimenters.findUnique({
       where: { email: userEmail },
     });
@@ -23,8 +21,8 @@ export async function GET(request, { params }) {
       return NextResponse.json({ message: "Experimenter not found" }, { status: 404 });
     }
 
-    // Fetch the complete experiment data with all related information for export
-    const experiment = await prisma.experiment.findFirst({
+    // This will fetch the experiment with all related data for export
+    const experiment = await prisma.experiment.findFirst({  
       where: {
         id: parseInt(id),
         experimenterId: experimenter.id,

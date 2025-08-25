@@ -18,7 +18,7 @@ export default function LevelPage() {
   const [error, setError] = useState(null);
   
   // Game states with proper move tracking
-  const [gameState, setGameState] = useState('waiting'); // 'waiting', 'moved', 'advice-shown', 'submitted'
+  const [gameState, setGameState] = useState('waiting'); 
   const [moveHistory, setMoveHistory] = useState([]);
   const [currentMove, setCurrentMove] = useState(null);
   const [userMoveDetails, setUserMoveDetails] = useState(null);
@@ -66,7 +66,7 @@ export default function LevelPage() {
         setSessionId(parseInt(storedSessionId));
         setPlayerName(storedPlayerName);
         
-        // Fetch active experiment with player context for counterbalancing
+        // Fetch active experiment with player for counterbalancing
         const response = await fetch(`/api/experiments/active?playerName=${encodeURIComponent(storedPlayerName)}`);
         if (!response.ok) {
           throw new Error('No active experiment found');
@@ -526,11 +526,12 @@ export default function LevelPage() {
 
   // Get confidence color based on percentage
   const getConfidenceColor = (confidence) => {
-    const percentage = confidence * 100;
-    if (percentage >= 70) return 'bg-green';
-    if (percentage >= 40) return 'bg-yellow';
-    return 'bg-red';
-  };
+  const percentage = Number(confidence) || 0;
+  
+  if (percentage >= 70) return 'bg-green-500';
+  if (percentage >= 40) return 'bg-yellow-500';
+  return 'bg-red-500';
+};
 
   // Parse advice format
   const getAdviceFormat = () => {
@@ -594,7 +595,7 @@ export default function LevelPage() {
           <p className="small-text">Player: {playerName} | Set: {level}</p>
           <button
             onClick={() => router.push('/welcome')}
-            className="btn btn-skip"
+            className="button button-skip"
           >
             Back to Home
           </button>
@@ -612,7 +613,7 @@ export default function LevelPage() {
           <p className="small-text">Condition: {condition?.name} | Puzzles: {puzzles.length}</p>
           <button
             onClick={() => router.push('/welcome')}
-            className="btn btn-skip"
+            className="button button-skip"
           >
             Back to Home
           </button>
@@ -660,7 +661,7 @@ export default function LevelPage() {
                     )}
                   </p>
                   {timeExceeded && (
-                    <p className="warning">⚠️ Time Exceeded!</p>
+                    <p className="warning">Time Exceeded!</p>
                   )}
                 </div>
                 
@@ -693,14 +694,14 @@ export default function LevelPage() {
         <div className="status">
           <div className="status-row">
             <div className="player">
-              <Image src="/chessplayer.png" alt="Human" width={52} height={52} className="avatar"/>
+              <Image src="/chessplayer.png" alt="Human" width={52} height={52} className="player"/>
               <div>
                 <p className="player-name">{sideToMove} to move</p>
                 {currentMove && (
                   <p className="move">Your move: {currentMove.move}</p>
                 )}
                 {undoUsed && (
-                  <p className="undo-warning">⚠️ Undo used</p>
+                  <p className="undo-warning">Undo used</p>
                 )}
               </div>
             </div>
@@ -736,16 +737,16 @@ export default function LevelPage() {
                   {currentPuzzle?.advice && (
                     <button
                       onClick={handleShowAdvice}
-                      className="btn btn-advice"
+                      className="button button-advice"
                     >
-                      💡 Show Advice
+                      Show Advice
                     </button>
                   )}
                   <button
                     onClick={handleSkipPuzzle}
-                    className="btn btn-skip"
+                    className="button button-skip"
                   >
-                    ⏭️ Skip Puzzle
+                    Skip Puzzle
                   </button>
                 </div>
               </div>
@@ -758,7 +759,7 @@ export default function LevelPage() {
                 
                 <div className="panel-content">
                   <div className="recommendation">
-                    <p>🎯 Recommended: {currentPuzzle.advice.text}</p>
+                    <p>Recommended: {currentPuzzle.advice.text}</p>
                   </div>
 
                   {/* CONFIDENCE */}
@@ -767,13 +768,13 @@ export default function LevelPage() {
                       <div className="confidence-row">
                         <p className="confidence-label">Confidence</p>
                         <p className="confidence-score">
-                          {Math.round(currentPuzzle.advice.confidence * 1)}%
+                          {Math.round(currentPuzzle.advice.confidence)}%
                         </p>
                       </div>
                       <div className="confidence-bar">
                         <div
                           className={`confidence-fill ${getConfidenceColor(currentPuzzle.advice.confidence)}`}
-                          style={{ width: `${currentPuzzle.advice.confidence * 100}%` }}
+                          style={{ width: `${currentPuzzle.advice.confidence}%` }}
                         />
                       </div>
                     </div>
@@ -782,12 +783,12 @@ export default function LevelPage() {
                   {/* EXPLANATION */}
                   {(adviceFormat.includes('full') || adviceFormat.includes('explanation')) && currentPuzzle.advice.explanation && (
                     <div className="explanation">
-                      <p>💭 {currentPuzzle.advice.explanation}</p>
+                      <p>Explanation: {currentPuzzle.advice.explanation}</p>
                     </div>
                   )}
 
                   <div className="msg-info">
-                    <p>💡 Advice is shown. Make your move on the board.</p>
+                    <p>Advice is shown. Make your move on the board.</p>
                   </div>
                 </div>
               </div>
@@ -829,7 +830,7 @@ export default function LevelPage() {
                   )}
 
                   <div className="recommendation">
-                    <p>🎯 Recommended: {currentPuzzle.advice.text}</p>
+                    <p>Recommended: {currentPuzzle.advice.text}</p>
                   </div>
 
                   {/* CONFIDENCE - Show if format is 'full' OR includes 'confidence' */}
@@ -838,13 +839,13 @@ export default function LevelPage() {
                       <div className="confidence-row">
                         <p className="confidence-label">Confidence</p>
                         <p className="confidence-score">
-                          {Math.round(currentPuzzle.advice.confidence * 1)}%
+                          {Math.round(currentPuzzle.advice.confidence)}%
                         </p>
                       </div>
                       <div className="confidence-bar">
                         <div
                           className={`confidence-fill ${getConfidenceColor(currentPuzzle.advice.confidence)}`}
-                          style={{ width: `${currentPuzzle.advice.confidence * 1}%` }}
+                          style={{ width: `${currentPuzzle.advice.confidence}%` }}
                         />
                       </div>
                     </div>
@@ -853,7 +854,7 @@ export default function LevelPage() {
                   {/* EXPLANATION - Show if format is 'full' OR includes 'explanation' */}
                   {(adviceFormat.includes('full') || adviceFormat.includes('explanation')) && currentPuzzle.advice.explanation && (
                     <div className="explanation">
-                      <p>💭 {currentPuzzle.advice.explanation}</p>
+                      <p>Explanation: {currentPuzzle.advice.explanation}</p>
                     </div>
                   )}
 
@@ -861,13 +862,13 @@ export default function LevelPage() {
                   {currentMove ? (
                     <button
                       onClick={handleSubmitMove}
-                      className="btn btn-submit"
+                      className="button button-submit"
                     >
-                      ✅ Submit Move
+                      Submit Move
                     </button>
                   ) : (
                     <div className="msg-wait">
-                      <p>💡 Advice shown. Now make your move on the board.</p>
+                      <p>Advice shown. Now make your move on the board.</p>
                     </div>
                   )}
                 </div>
@@ -886,9 +887,9 @@ export default function LevelPage() {
 
                   <button
                     onClick={handleSubmitMove}
-                    className="btn btn-submit"
+                    className="button button-submit"
                   >
-                    ✅ Submit Move
+                    Submit Move
                   </button>
                 </div>
               </div>
@@ -899,7 +900,7 @@ export default function LevelPage() {
                 <h3>Move Submitted!</h3>
                 <div className="submitted-content">
                   <div className="success-msg">
-                    <p>✨ Great job! Moving to next puzzle...</p>
+                    <p>Great job! Moving to next puzzle...</p>
                   </div>
                   <div className="dots">
                     <div className="dot"></div>
@@ -908,7 +909,7 @@ export default function LevelPage() {
                   </div>
                   <button
                     onClick={handleNextPuzzle}
-                    className="btn btn-next"
+                    className="button button-next"
                   >
                     Next Puzzle Now →
                   </button>
@@ -918,22 +919,22 @@ export default function LevelPage() {
           </div>
         </div>
 
-        <div className="legend">
-          <div className="legend-grid">
-            <div className="legend-item">
-              <span className="legend-dot bg-blue"></span>
+        <div className="submission">
+          <div className="submission-grid">
+            <div className="submission-item">
+              <span className="submission-dot bg-blue"></span>
               Waiting for move
             </div>
-            <div className="legend-item">
-              <span className="legend-dot bg-yellow"></span>
+            <div className="submission-item">
+              <span className="submission-dot bg-yellow"></span>
               Analyzing move
             </div>
-            <div className="legend-item">
-              <span className="legend-dot bg-green"></span>
+            <div className="submission-item">
+              <span className="submission-dot bg-green"></span>
               Advice shown
             </div>
-            <div className="legend-item">
-              <span className="legend-dot bg-purple"></span>
+            <div className="submission-item">
+              <span className="submission-dot bg-purple"></span>
               Move submitted
             </div>
           </div>
