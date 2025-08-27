@@ -3,16 +3,16 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-// GET - Fetch user profile
+// GET - This will fetch the profile of the currently logged in experimenter
 export async function GET(request) {
   try {
-    // Get user info from request headers or body
     const userEmail = request.headers.get('user-email');
     
     if (!userEmail) {
       return NextResponse.json({ message: 'User email required' }, { status: 400 });
     }
 
+    // finding the experimenter by email in the database via prisma
     const experimenter = await prisma.experimenters.findUnique({
       where: { email: userEmail },
       select: {
@@ -27,7 +27,8 @@ export async function GET(request) {
       return NextResponse.json({ message: 'User not found' }, { status: 404 });
     }
 
-    // Split name into firstName and lastName for frontend compatibility
+  // The database stores the user's full name in a single field.
+  // Split it into first and last name so the frontend can display them separately.
     const nameParts = experimenter.name.split(' ');
     const firstName = nameParts[0] || '';
     const lastName = nameParts.slice(1).join(' ') || '';
@@ -37,7 +38,7 @@ export async function GET(request) {
       firstName,
       lastName,
       email: experimenter.email,
-      avatar: null // Add avatar support later if needed
+      avatar: null // Add avatar support later if needed (image)
     });
 
   } catch (error) {
@@ -46,7 +47,7 @@ export async function GET(request) {
   }
 }
 
-// PUT - Update user profile
+// PUT - Update experimenter profile
 export async function PUT(request) {
   try {
     const body = await request.json();
@@ -58,9 +59,10 @@ export async function PUT(request) {
 
     const { firstName, lastName, email } = body;
     
-    // Combine firstName and lastName
+    // Combine first and last name into a single field  for database storage
     const fullName = `${firstName || ''} ${lastName || ''}`.trim();
 
+    
     const updatedExperimenter = await prisma.experimenters.update({
       where: { email: userEmail },
       data: {
@@ -74,7 +76,8 @@ export async function PUT(request) {
       }
     });
 
-    // Return in frontend format
+    // Return the updated profile in the format the frontend expects
+    // (split full name into first and last names again)
     const nameParts = updatedExperimenter.name.split(' ');
     const updatedFirstName = nameParts[0] || '';
     const updatedLastName = nameParts.slice(1).join(' ') || '';

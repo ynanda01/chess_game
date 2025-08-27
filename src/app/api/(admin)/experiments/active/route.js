@@ -82,7 +82,6 @@ export async function GET(request) {
           );
         }).filter(condition => condition !== undefined);
         
-        console.log(`Returning existing order for ${playerName}:`, conditionsToReturn.map(c => c.id));
       } else {
 
         // New player - assign them a new randomised order based on session count
@@ -94,13 +93,8 @@ export async function GET(request) {
           activeExperiment.conditions, 
           sessionCount
         );
-        
-        console.log(`New randomised order for ${playerName} (session ${sessionCount + 1}):`, 
-          conditionsToReturn.map(c => c.id));
       }
-    } else {
-      console.log('No playerName provided, returning original condition order');
-    }
+    } 
 
     // Prepare the experiment data to return, including only required fields
     const transformedExperiment = {
@@ -138,14 +132,6 @@ export async function GET(request) {
         }))
       }))
     };
-
-    // If we know the player name, attach debug info to help trace their order
-    if (playerName) {
-      transformedExperiment.debug = {
-        playerName: playerName,
-        conditionOrder: conditionsToReturn.map(c => ({ id: c.id, name: c.name, originalOrder: c.order }))
-      };
-    }
 
     return NextResponse.json(transformedExperiment);
 

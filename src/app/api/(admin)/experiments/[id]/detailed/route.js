@@ -73,7 +73,7 @@ export async function GET(request, { params }) {
       return NextResponse.json({ message: "Experiment not found" }, { status: 404 });
     }
 
-    // Transform the data to ensure proper structure for export
+    // This will format the experiment data to include condition in each puzzle within responses
     const transformedExperiment = {
       ...experiment,
       sessions: experiment.sessions.map(session => ({

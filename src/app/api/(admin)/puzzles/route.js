@@ -1,4 +1,3 @@
-// app/api/puzzles/route.js - Clean Version
 import { NextResponse } from 'next/server';
 import prisma from '../../../../../lib/prisma';
 
@@ -18,7 +17,7 @@ export async function GET(request) {
     let whereClause = {};
 
     if (conditionId) {
-      // Fetch puzzles for specific condition
+      // Get the puzzles for a specific condition
       const cId = parseInt(conditionId);
       if (isNaN(cId)) {
         return NextResponse.json(
@@ -28,7 +27,7 @@ export async function GET(request) {
       }
       whereClause.conditionId = cId;
     } else if (experimentId) {
-      // Fetch puzzles for entire experiment (all conditions)
+      // Get all puzzles across conditions for an experiment
       const expId = parseInt(experimentId);
       if (isNaN(expId)) {
         return NextResponse.json(
@@ -39,7 +38,7 @@ export async function GET(request) {
       whereClause.condition = { experimentId: expId };
     }
 
-    // Fetch puzzles with their advice and condition info
+    // try to fetch puzzles with their advice and condition details via prisma 
     const puzzles = await prisma.puzzle.findMany({
       where: whereClause,
       include: {
@@ -61,12 +60,10 @@ export async function GET(request) {
       ]
     });
 
-    console.log(`✅ Found ${puzzles.length} puzzles${conditionId ? ` for condition ${conditionId}` : ` for experiment ${experimentId}`}`);
-
     return NextResponse.json({ puzzles }, { status: 200 });
 
   } catch (error) {
-    console.error('❌ Error fetching puzzles:', error);
+    console.error('Error fetching puzzles:', error);
     return NextResponse.json(
       { message: 'Failed to fetch puzzles', error: error.message },
       { status: 500 }
@@ -77,11 +74,6 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const { experimentId, conditionId, puzzles } = await request.json();
-
-    console.log('=== PUZZLES API DEBUG ===');
-    console.log('Received experimentId:', experimentId);
-    console.log('Received conditionId:', conditionId);
-    console.log('Received puzzles count:', puzzles?.length);
 
     if (!conditionId) {
       return NextResponse.json(
@@ -105,7 +97,7 @@ export async function POST(request) {
       );
     }
 
-    // Check if condition exists
+    // Make sure the condition should be actually exists before proceeding
     const condition = await prisma.condition.findUnique({
       where: { id: cId },
       include: { 
@@ -122,9 +114,7 @@ export async function POST(request) {
       );
     }
 
-    console.log('✅ Condition found:', condition.name, 'in experiment:', condition.experiment.name);
-
-    // Delete existing puzzles and advice for this condition
+    // Clear out any existing puzzles and advice for this condition
     const deletedAdvice = await prisma.advice.deleteMany({
       where: {
         puzzle: {
@@ -137,15 +127,13 @@ export async function POST(request) {
       where: { conditionId: cId }
     });
 
-    console.log('🗑️ Deleted:', deletedPuzzles.count, 'puzzles and', deletedAdvice.count, 'advice records');
-
-    // Create new puzzles with advice
+    // Now create the new puzzles with their advice
     const createdPuzzles = [];
 
     for (let i = 0; i < puzzles.length; i++) {
       const puzzleData = puzzles[i];
 
-      // Validate puzzle data
+      // Basic validation - need FEN and the correct move
       if (!puzzleData.fen || !puzzleData.correctMove) {
         return NextResponse.json(
           { message: `Puzzle ${i + 1}: FEN and correct move are required` },
@@ -153,7 +141,7 @@ export async function POST(request) {
         );
       }
 
-      // Create puzzle linked to condition
+      // Create the puzzle record
       const puzzle = await prisma.puzzle.create({
         data: {
           fen: puzzleData.fen,
@@ -163,7 +151,7 @@ export async function POST(request) {
         }
       });
 
-      // Create advice if provided (based on condition's advice format)
+      // Add advice if the condition is set up to use it
       const needsAdvice = condition.adviceformat && condition.adviceformat !== 'none';
       
       if (needsAdvice && (puzzleData.advice || puzzleData.confidence || puzzleData.explanation || puzzleData.reliability !== 'none')) {
@@ -183,8 +171,6 @@ export async function POST(request) {
       createdPuzzles.push(puzzle);
     }
 
-    console.log(`✅ Created ${createdPuzzles.length} puzzles with advice for condition "${condition.name}"`);
-
     return NextResponse.json({ 
       message: 'Puzzles saved successfully',
       puzzles: createdPuzzles,
@@ -192,9 +178,9 @@ export async function POST(request) {
     }, { status: 201 });
 
   } catch (error) {
-    console.error('❌ Error saving puzzles:', error);
+    console.error('Error saving puzzles:', error);
     
-    // Handle unique constraint violations
+    // Handle the case where puzzle order conflicts occur
     if (error.code === 'P2002' && error.meta?.target?.includes('order')) {
       return NextResponse.json(
         { message: 'Duplicate puzzle order detected. Please try again.' },
