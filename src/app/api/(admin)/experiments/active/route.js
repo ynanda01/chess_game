@@ -1,18 +1,17 @@
-// app/api/experiments/active/route.js
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-// Same counterbalancing function as in player-sessions
+// radmoised condition order (1,2,3 -> 2,3,1 -> 3,1,2 etc based on condition count)
 function getRandomisedConditionOrder(conditions, sessionCount) {
   const numConditions = conditions.length;
   if (numConditions === 0) return [];
   
-  // Calculate rotation offset based on session count
+  // Calculate rotation based on session count
   const offset = sessionCount % numConditions;
   
-  // Create rotation array: shift conditions by offset positions
+  // Rotate the conditions
   const rotation = [
     ...conditions.slice(offset),
     ...conditions.slice(0, offset)
@@ -21,13 +20,14 @@ function getRandomisedConditionOrder(conditions, sessionCount) {
   return rotation;
 }
 
-// GET - Get the currently active experiment for participants
+// GET - this will fetch the currently active experiment for participants
+// only one experiment can be active at a time
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const playerName = searchParams.get('playerName');
 
-    // Get active experiment (no user authentication needed for participants)
+    // this will try to find the active experiment in the database
     const activeExperiment = await prisma.experiment.findFirst({
       where: { 
         isActive: true 
@@ -42,17 +42,18 @@ export async function GET(request) {
               orderBy: { order: 'asc' }
             }
           },
-          orderBy: { id: 'asc' } // CHANGED: Order by ID instead of order field
+          orderBy: { id: 'asc' } 
         },
         experimenter: {
           select: {
             name: true,
-            email: false // Don't expose email to participants
+            email: false
           }
         }
       }
     });
 
+    // If no experiment is active, return message
     if (!activeExperiment) {
       return NextResponse.json({ 
         message: 'No active experiment available',
@@ -60,11 +61,11 @@ export async function GET(request) {
       }, { status: 404 });
     }
 
-    // Apply counterbalancing if we have a player session request
+    // { Apply counterbalancing if we have a player session request }
     let conditionsToReturn = activeExperiment.conditions;
     
     if (playerName) {
-      // Check if this player already has session orders (return their existing order)
+      // this will Check if this player already has session orders (return their existing order)
       const existingOrders = await prisma.sessionExperimentOrder.findMany({
         where: {
           player_Name: playerName.trim(),
@@ -74,16 +75,16 @@ export async function GET(request) {
       });
 
       if (existingOrders.length > 0) {
-        // Player has existing orders - return conditions in their assigned order
+        // if Player has existing orders - return their previous conditions in their assigned order
         conditionsToReturn = existingOrders.map(orderItem => {
           return activeExperiment.conditions.find(condition => 
             condition.id === orderItem.conditionId
           );
         }).filter(condition => condition !== undefined);
         
-        console.log(`Returning existing order for ${playerName}:`, conditionsToReturn.map(c => c.id));
       } else {
-        // New player - apply counterbalancing
+
+        // New player - assign them a new randomised order based on session count
         const sessionCount = await prisma.playerSession.count({
           where: { experimentId: activeExperiment.id }
         });
@@ -92,15 +93,10 @@ export async function GET(request) {
           activeExperiment.conditions, 
           sessionCount
         );
-        
-        console.log(`New randomised order for ${playerName} (session ${sessionCount + 1}):`, 
-          conditionsToReturn.map(c => c.id));
       }
-    } else {
-      console.log('No playerName provided, returning original condition order');
-    }
+    } 
 
-    // Transform for frontend
+    // Prepare the experiment data to return, including only required fields
     const transformedExperiment = {
       id: activeExperiment.id,
       name: activeExperiment.name,
@@ -117,9 +113,11 @@ export async function GET(request) {
         adviceformat: condition.adviceformat || activeExperiment.adviceformat,
         timerEnabled: condition.timerEnabled !== null ? condition.timerEnabled : activeExperiment.timerEnabled,
         timeLimit: condition.timeLimit !== null ? condition.timeLimit : activeExperiment.timeLimit,
+
         // Frontend still sees Set 1, Set 2, Set 3... but gets randomised conditions
         displayOrder: index + 1,
-        originalOrder: condition.order, // Keep track of original condition order
+        // Keep track of original condition order
+        originalOrder: condition.order, 
         puzzles: condition.puzzles.map(puzzle => ({
           id: puzzle.id,
           fen: puzzle.fen,
@@ -135,14 +133,6 @@ export async function GET(request) {
       }))
     };
 
-    // Add debug info if playerName is provided
-    if (playerName) {
-      transformedExperiment.debug = {
-        playerName: playerName,
-        conditionOrder: conditionsToReturn.map(c => ({ id: c.id, name: c.name, originalOrder: c.order }))
-      };
-    }
-
     return NextResponse.json(transformedExperiment);
 
   } catch (error) {
@@ -154,9 +144,11 @@ export async function GET(request) {
   }
 }
 
-// POST - Check if experiment is still active (for ongoing sessions)
+// POST - This endpoint allows checking if an experiment is still active or not
+// it is Useful for ongoing sessions to verify experiment status
 export async function POST(request) {
   try {
+    // Expecting { experimentId: number } in the request body
     const { experimentId } = await request.json();
     
     if (!experimentId) {
@@ -166,6 +158,8 @@ export async function POST(request) {
       }, { status: 400 });
     }
 
+    // Try to find the experiment by ID in the database via prisma
+    // parsing to int to ensure correct type
     const experiment = await prisma.experiment.findUnique({
       where: { id: parseInt(experimentId) },
       select: { 

@@ -1,21 +1,23 @@
-// app/api/experiments/[id]/route.js
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-// GET - Get experiment details with conditions and puzzle counts
+// GET - THis will get experiment by ID with conditions and puzzle counts
 export async function GET(request, { params }) {
   try {
+    // Extract experiment ID from params
     const { id } = await params;
     const experimentId = parseInt(id);
 
+    // Validate experiment ID
     if (!experimentId) {
       return NextResponse.json({
         message: 'Experiment ID is required'
       }, { status: 400 });
     }
 
+    //this will fectch the experiment by ID, from the database 
     const experiment = await prisma.experiment.findUnique({
       where: { id: experimentId },
       include: {
@@ -33,13 +35,15 @@ export async function GET(request, { params }) {
       }
     });
 
+    //If no experiment with that ID exists it will return message
     if (!experiment) {
       return NextResponse.json({
         message: 'Experiment not found'
       }, { status: 404 });
     }
 
-    // Format the response
+    // Format the response so that frontend gets exactly what it needs
+    // This avoids sending unnecessary data
     const formattedExperiment = {
       id: experiment.id,
       name: experiment.name,
@@ -54,7 +58,7 @@ export async function GET(request, { params }) {
         name: condition.name,
         description: condition.description,
         order: condition.order,
-        puzzleCount: condition._count.puzzles, // Actual puzzle count from _count
+        puzzleCount: condition._count.puzzles,
         timerEnabled: condition.timerEnabled,
         timeLimit: condition.timeLimit,
         adviceformat: condition.adviceformat
@@ -71,7 +75,7 @@ export async function GET(request, { params }) {
   }
 }
 
-// DELETE - Delete experiment
+// DELETE - Delete an experiment by ID only if it is inactive and belongs to the experimenter
 export async function DELETE(request, { params }) {
   try {
     const userEmail = request.headers.get('user-email');
@@ -82,7 +86,7 @@ export async function DELETE(request, { params }) {
       return NextResponse.json({ message: 'User email required' }, { status: 400 });
     }
 
-    // Get experimenter
+    // this will try to find the experimenter by email in the database via prisma
     const experimenter = await prisma.experimenters.findUnique({
       where: { email: userEmail }
     });
@@ -91,7 +95,7 @@ export async function DELETE(request, { params }) {
       return NextResponse.json({ message: 'User not found' }, { status: 404 });
     }
 
-    // Check if experiment belongs to user
+    // Check if experiment actually belongs to the user
     const experiment = await prisma.experiment.findFirst({
       where: {
         id: experimentId,
@@ -103,14 +107,17 @@ export async function DELETE(request, { params }) {
       return NextResponse.json({ message: 'Experiment not found' }, { status: 404 });
     }
 
-    // Prevent deletion of active experiments
+    // Only allow deletion if experiment is inactive 
+    // Active experiments cannot be deleted 
     if (experiment.isActive) {
       return NextResponse.json({ 
         message: 'Cannot delete an active experiment. Please deactivate it first.' 
       }, { status: 400 });
     }
 
-    // Delete experiment (cascading will handle related data)
+     // Delete the experiment
+    // Any related conditions and puzzles will also be removed automatically 
+   // if cascading deletes are defined in the Prisma schema
     await prisma.experiment.delete({
       where: { id: experimentId }
     });
@@ -123,7 +130,7 @@ export async function DELETE(request, { params }) {
   }
 }
 
-// PUT - Update experiment
+// PUT - Update experiment details 
 export async function PUT(request, { params }) {
   try {
     const body = await request.json();
@@ -135,7 +142,7 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ message: 'User email required' }, { status: 400 });
     }
 
-    // Get experimenter
+    // this will try to find the experimenter by email in the database via prisma
     const experimenter = await prisma.experimenters.findUnique({
       where: { email: userEmail }
     });
@@ -146,7 +153,7 @@ export async function PUT(request, { params }) {
 
     const { name, description, adviceformat, timerEnabled, timeLimit } = body;
 
-    // Update experiment (removed conditionName as it no longer exists)
+    // Update experiment with the new details
     const updatedExperiment = await prisma.experiment.update({
       where: {
         id: experimentId,
@@ -176,7 +183,8 @@ export async function PUT(request, { params }) {
   }
 }
 
-// PATCH - Toggle experiment active status
+// PATCH - activate or deactivate an experiment
+// Activating an experiment will automatically deactivate any other active experiments for that user
 export async function PATCH(request, { params }) {
   try {
     const body = await request.json();
@@ -189,7 +197,7 @@ export async function PATCH(request, { params }) {
       return NextResponse.json({ message: 'User email required' }, { status: 400 });
     }
 
-    // Get experimenter
+    // this will try to find the experimenter by email in the database via prisma
     const experimenter = await prisma.experimenters.findUnique({
       where: { email: userEmail }
     });
@@ -198,7 +206,7 @@ export async function PATCH(request, { params }) {
       return NextResponse.json({ message: 'User not found' }, { status: 404 });
     }
 
-    // Check if experiment belongs to user
+    // this will Check if experiment actually belongs to the experimenter
     const experiment = await prisma.experiment.findFirst({
       where: {
         id: experimentId,
@@ -210,12 +218,12 @@ export async function PATCH(request, { params }) {
       return NextResponse.json({ message: 'Experiment not found' }, { status: 404 });
     }
 
-    // If setting to active, first deactivate all other experiments for this user
+    // If activating, first deactivate any other active experiments for this experimenter
     if (isActive) {
       await prisma.experiment.updateMany({
         where: {
           experimenterId: experimenter.id,
-          id: { not: experimentId } // Exclude the current experiment
+          id: { not: experimentId } 
         },
         data: {
           isActive: false
@@ -223,7 +231,8 @@ export async function PATCH(request, { params }) {
       });
     }
 
-    // Update the target experiment
+    // Now update the requested experiment's active status
+    // This allows both activation and deactivation
     const updatedExperiment = await prisma.experiment.update({
       where: { 
         id: experimentId 

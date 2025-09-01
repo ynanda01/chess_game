@@ -1,10 +1,9 @@
-// app/api/player-responses/route.js
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-// POST - Save player response to a puzzle
+// POST - this will save player response for a puzzle in a session
 export async function POST(request) {
   try {
     const {
@@ -20,17 +19,18 @@ export async function POST(request) {
       undoUsed,
       timeExceeded,
       skipped,
-      moves // Array of move records
+      // Array of move records
+      moves 
     } = await request.json();
 
-    // Validate required fields
+    // This will validate sessionId and puzzleId are provided
     if (!sessionId || !puzzleId) {
       return NextResponse.json({
         message: 'Session ID and Puzzle ID are required'
       }, { status: 400 });
     }
 
-    // Verify session exists
+    // this will verify the session exists and is active or not
     const session = await prisma.playerSession.findUnique({
       where: { id: parseInt(sessionId) },
       include: {
@@ -46,14 +46,15 @@ export async function POST(request) {
       }, { status: 404 });
     }
 
-    // Check if experiment is still active
+    // Check if experiment is still active or not
     if (!session.experiment.isActive) {
       return NextResponse.json({
         message: 'Experiment is no longer active'
       }, { status: 403 });
     }
 
-    // Verify puzzle exists
+
+    // this will fetch the puzzle by ID from the database via prisma
     const puzzle = await prisma.puzzle.findUnique({
       where: { id: parseInt(puzzleId) },
       select: { id: true, correct_move: true }
@@ -65,7 +66,9 @@ export async function POST(request) {
       }, { status: 404 });
     }
 
-    // Check if response already exists (prevent duplicates)
+    // Check if a response already exists for this session and puzzle
+    // to prevent duplicate entries
+
     const existingResponse = await prisma.playerResponse.findUnique({
       where: {
         sessionId_puzzleId: {
@@ -82,17 +85,18 @@ export async function POST(request) {
       }, { status: 409 });
     }
 
-    // FIXED - Handle move matching logic properly for skipped puzzles
+    // Check if the player's move matches the correct answer (only if they didn't skip)
     let actualMoveMatchesAdvice = false;
     if (!skipped && moveAfterAdvice && puzzle.correct_move) {
       actualMoveMatchesAdvice = moveAfterAdvice === puzzle.correct_move;
     }
 
-    // FIXED - Handle empty moves properly (convert empty strings to null)
+    // Clean up empty moves - convert empty strings to null for cleaner data
     const processedMoveBeforeAdvice = moveBeforeAdvice && moveBeforeAdvice.trim() !== '' ? moveBeforeAdvice : null;
     const processedMoveAfterAdvice = moveAfterAdvice && moveAfterAdvice.trim() !== '' ? moveAfterAdvice : null;
 
-    // Create player response using Prisma transaction for data integrity
+   
+    // Save everything in one respose to keep data consistently
     const result = await prisma.$transaction(async (tx) => {
       // Create player response with proper relationship connection
       const playerResponse = await tx.playerResponse.create({
@@ -116,7 +120,8 @@ export async function POST(request) {
         }
       });
 
-      // Create move records if provided
+      
+      // If there are move records, create them linked to this response
       if (moves && Array.isArray(moves) && moves.length > 0) {
         const moveRecords = moves.map((move, index) => ({
           responseId: playerResponse.id,
@@ -134,7 +139,7 @@ export async function POST(request) {
       return playerResponse;
     });
 
-    // FIXED - Return enhanced success response with detailed information
+    // Return success with details
     return NextResponse.json({
       message: skipped ? 'Skip recorded successfully' : 'Response saved successfully',
       responseId: result.id,
@@ -151,7 +156,7 @@ export async function POST(request) {
   } catch (error) {
     console.error('Player response save error:', error);
     
-    // FIXED - Enhanced error logging for debugging
+    // Log the request data to help with debugging
     console.error('Request data:', {
       sessionId,
       puzzleId,
@@ -169,12 +174,12 @@ export async function POST(request) {
   }
 }
 
-// GET - Get player responses for a session (enhanced for debugging)
+// GET - this will fetch all player responses for a session
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const sessionId = searchParams.get('sessionId');
-    const includeSkipped = searchParams.get('includeSkipped') !== 'false'; // Default true
+    const includeSkipped = searchParams.get('includeSkipped') !== 'false';
 
     if (!sessionId) {
       return NextResponse.json({
@@ -182,7 +187,7 @@ export async function GET(request) {
       }, { status: 400 });
     }
 
-    // FIXED - Enhanced query with better filtering and sorting
+    // Fetch player responses for the session, optionally excluding skipped puzzles
     const whereClause = {
       sessionId: parseInt(sessionId)
     };
@@ -219,7 +224,7 @@ export async function GET(request) {
       ]
     });
 
-    // FIXED - Calculate summary statistics
+    // calculate summary statistics
     const summary = {
       total: responses.length,
       completed: responses.filter(r => !r.skipped).length,

@@ -722,17 +722,17 @@ export default function Newboard({
         <div>
           {tempMove && (
             <div>
-              <p style={{ color: "#E6C567", margin: 0 }}>
+              <p style={{ color: "#E6C567", margin: 0, paddingTop: "19px" }}>
                 Move: <strong>{tempMove.move.san}</strong>
               </p>
               {showAdvice && adviceMove && (
                 (tempMove.from === adviceMove.from && tempMove.to === adviceMove.to) ? (
                   <p style={{ color: "#4CAF50", margin: 0, fontSize: "14px" }}>
-                    ✅ Perfect match!
+                    Perfect match!
                   </p>
                 ) : (
                   <p style={{ color: "#F44336", margin: 0, fontSize: "14px" }}>
-                    💡 Check the advice path
+                    Check the advice path
                   </p>
                 )
               )}
@@ -740,7 +740,7 @@ export default function Newboard({
           )}
           {showAdvice && adviceMove && (
             <p style={{ color: "#4CAF50", margin: 0, fontSize: "14px" }}>
-              💡 Advice: {adviceMove.from ? `${adviceMove.from} → ${adviceMove.to}` : `Target: ${adviceMove.to}`}
+              Advice: {adviceMove.from ? `${adviceMove.from} → ${adviceMove.to}` : `Target: ${adviceMove.to}`}
             </p>
           )}
         </div>

@@ -20,7 +20,7 @@ export async function POST(request) {
       );
     }
 
-    // Verify experimenter exists
+    // checking if any experimenter exists or not
     const experimenter = await prisma.experimenters.findUnique({
       where: { id: experimenterId }
     });
@@ -34,8 +34,9 @@ export async function POST(request) {
 
     let experiment;
 
+      // If experimentId is provided, we are updating an existing experiment
     if (experimentId) {
-      // UPDATE existing experiment
+     
       const expId = parseInt(experimentId);
       if (isNaN(expId)) {
         return NextResponse.json(
@@ -44,7 +45,7 @@ export async function POST(request) {
         );
       }
 
-      // Check if experiment exists and belongs to this experimenter
+      // Checking if this experiment exists and belongs to this experimenter
       const existingExperiment = await prisma.experiment.findUnique({
         where: { id: expId }
       });
@@ -63,7 +64,7 @@ export async function POST(request) {
         );
       }
 
-      // Update experiment
+      // updating the experiment
       experiment = await prisma.experiment.update({
         where: { id: expId },
         data: {
@@ -74,7 +75,7 @@ export async function POST(request) {
       });
 
     } else {
-      // CREATE new experiment
+      // Creating a new experiment
       experiment = await prisma.experiment.create({
         data: {
           name: name.trim(),

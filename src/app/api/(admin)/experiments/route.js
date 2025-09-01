@@ -1,10 +1,9 @@
-// app/api/experiments/route.js
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-// GET - Fetch all experiments for user
+// This GEt will Fetch all experiments for the logged-in experimenter, including conditions and puzzles
 export async function GET(request) {
   try {
     const userEmail = request.headers.get('user-email');
@@ -13,7 +12,7 @@ export async function GET(request) {
       return NextResponse.json({ message: 'User email required' }, { status: 400 });
     }
 
-    // First get the experimenter
+    // lookup experimnenter in DB that matches the email
     const experimenter = await prisma.experimenters.findUnique({
       where: { email: userEmail }
     });
@@ -22,7 +21,7 @@ export async function GET(request) {
       return NextResponse.json({ message: 'User not found' }, { status: 404 });
     }
 
-    // Get experiments with session data for export
+    // this will fetch all experiments for this experimenter, including conditions and puzzles
     const experiments = await prisma.experiment.findMany({
       where: { experimenterId: experimenter.id },
       include: {
@@ -56,7 +55,8 @@ export async function GET(request) {
       orderBy: { created_at: 'desc' }
     });
 
-    // Transform data for frontend compatibility
+    // Simplify the experiments data keep only essential fields and format sessions/responses for easier use
+
     const transformedExperiments = experiments.map(exp => ({
       id: exp.id,
       name: exp.name,
@@ -84,7 +84,7 @@ export async function GET(request) {
   }
 }
 
-// POST - Create new experiment (simplified - conditions/puzzles added separately)
+// POST - Create a new experiment
 export async function POST(request) {
   try {
     const body = await request.json();
@@ -94,7 +94,7 @@ export async function POST(request) {
       return NextResponse.json({ message: 'User email required' }, { status: 400 });
     }
 
-    // Get experimenter
+   // Find the experimenter linked to this email
     const experimenter = await prisma.experimenters.findUnique({
       where: { email: userEmail }
     });
@@ -105,7 +105,8 @@ export async function POST(request) {
 
     const { name, description, adviceformat, timerEnabled, timeLimit } = body;
 
-    // Create experiment (without puzzles - those are added via conditions)
+    // Create the experiment record 
+    // puzzles will be added later through conditions
     const experiment = await prisma.experiment.create({
       data: {
         name,
@@ -113,7 +114,8 @@ export async function POST(request) {
         adviceformat: adviceformat || 'text',
         timerEnabled: timerEnabled || false,
         timeLimit: timeLimit || null,
-        isActive: false, // New experiments start as inactive
+        // New experiments always start as inactive
+        isActive: false, 
         experimenterId: experimenter.id
       }
     });

@@ -1,4 +1,3 @@
-// app/api/conditions/route.js
 import { NextResponse } from 'next/server';
 import prisma from '../../../../../lib/prisma';
 
@@ -6,10 +5,7 @@ export async function POST(request) {
   try {
     const { experimentId, name, description, adviceformat, timerEnabled, timeLimit, order } = await request.json();
 
-    console.log('=== CONDITIONS API DEBUG ===');
-    console.log('Received data:', { experimentId, name, description, adviceformat, timerEnabled, timeLimit, order });
-
-    // Validation
+    // Required fields are validating
     if (!experimentId) {
       return NextResponse.json(
         { message: 'Experiment ID is required' },
@@ -31,6 +27,10 @@ export async function POST(request) {
       );
     }
 
+    // Converting the experimentId to a number and check if it's valid.
+    // If it's not a valid number, return a 400 Bad Request response
+    // with an error message instead of continuing.
+
     const expId = parseInt(experimentId);
     if (isNaN(expId)) {
       return NextResponse.json(
@@ -39,7 +39,7 @@ export async function POST(request) {
       );
     }
 
-    // Check if experiment exists
+    // Verifying the experiment exists
     const existingExperiment = await prisma.experiment.findUnique({
       where: { id: expId }
     });
@@ -51,7 +51,7 @@ export async function POST(request) {
       );
     }
 
-    // Check for duplicate condition names in this experiment (case-insensitive)
+    // Check for the duplicate condition names within this experiment
     const trimmedName = name.trim();
     const existingConditions = await prisma.condition.findMany({
       where: {
@@ -70,7 +70,10 @@ export async function POST(request) {
       );
     }
 
-    // FIXED: Find the lowest available order (fills gaps from deletions)
+    // Determine the next available order number for a new condition.
+    // Orders are checked in ascending order, and the first gap in the sequence
+    // is filled (for example 1,2,4], the next order will be 3).
+    // If no gaps exist, the next highest number is used.
     const existingOrders = existingConditions.map(c => c.order).sort((a, b) => a - b);
     
     let nextOrder = 1;
@@ -78,14 +81,11 @@ export async function POST(request) {
       if (existingOrders[i] === nextOrder) {
         nextOrder++;
       } else {
-        // Found a gap, use this order
         break;
       }
     }
 
-    console.log(`📊 Existing orders: [${existingOrders.join(', ')}], assigning order: ${nextOrder}`);
-
-    // Create new condition
+    // Creating the new condition
     const condition = await prisma.condition.create({
       data: {
         experimentId: expId,
@@ -94,7 +94,7 @@ export async function POST(request) {
         adviceformat: adviceformat,
         timerEnabled: Boolean(timerEnabled),
         timeLimit: timeLimit ? parseInt(timeLimit) : null,
-        order: nextOrder  // Use calculated order that fills gaps
+        order: nextOrder
       },
       include: {
         _count: {
@@ -103,20 +103,17 @@ export async function POST(request) {
       }
     });
 
-    console.log('✅ Condition created successfully:', condition);
-
     return NextResponse.json({
       message: 'Condition saved successfully',
       condition: condition
     }, { status: 201 });
     
   } catch (error) {
-    console.error('❌ Error saving condition:', error);
+    console.error('Error saving condition:', error);
     
-    // Handle unique constraint violations with more detailed error info
+    // Handle Prisma unique constraint errors (P2002).
+    // If the conflict is on the "name" field, return a 400 response
     if (error.code === 'P2002') {
-      console.log('Unique constraint error details:', error.meta);
-      
       if (error.meta?.target?.includes('name')) {
         return NextResponse.json(
           { message: 'A condition with this name already exists in this experiment' },
@@ -124,14 +121,13 @@ export async function POST(request) {
         );
       }
       if (error.meta?.target?.includes('order')) {
-        // This should be rare now with the fixed logic, but just in case
         return NextResponse.json(
           { message: 'Order conflict detected. Please try again.' },
           { status: 400 }
         );
       }
       
-      // Generic unique constraint error
+      // Normal duplicate conditons checking.
       return NextResponse.json(
         { message: 'A duplicate condition already exists' },
         { status: 400 }
@@ -165,7 +161,7 @@ export async function GET(request) {
       );
     }
 
-    // Get all conditions for this experiment with puzzle counts
+    // Fetch all conditions for the experiment, ordered by their sequence
     const conditions = await prisma.condition.findMany({
       where: { experimentId: expId },
       orderBy: { order: 'asc' },
@@ -176,12 +172,10 @@ export async function GET(request) {
       }
     });
 
-    console.log(`✅ Found ${conditions.length} conditions for experiment ${experimentId}`);
-
     return NextResponse.json({ conditions }, { status: 200 });
 
   } catch (error) {
-    console.error('❌ Error fetching conditions:', error);
+    console.error('Error fetching conditions:', error);
     return NextResponse.json(
       { message: 'Failed to fetch conditions' },
       { status: 500 }

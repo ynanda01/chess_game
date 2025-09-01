@@ -1,10 +1,10 @@
-// app/api/conditions/[id]/route.js
 import { NextResponse } from 'next/server';
 import prisma from '../../../../../../lib/prisma';
 
+// GET a single condition by ID, including its experiment info and puzzle counts
 export async function GET(request, { params }) {
   try {
-    const { id } = await params;
+    const { id } = params;
     
     const conditionId = parseInt(id);
     if (isNaN(conditionId)) {
@@ -14,6 +14,7 @@ export async function GET(request, { params }) {
       );
     }
 
+    // Fetch the condition along with its experiment details and puzzle count
     const condition = await prisma.condition.findUnique({
       where: { id: conditionId },
       include: {
@@ -38,12 +39,9 @@ export async function GET(request, { params }) {
       );
     }
 
-    console.log('✅ Fetched condition:', condition.name);
-
     return NextResponse.json({ condition }, { status: 200 });
 
   } catch (error) {
-    console.error('❌ Error fetching condition:', error);
     return NextResponse.json(
       { message: 'Failed to fetch condition' },
       { status: 500 }
@@ -51,9 +49,10 @@ export async function GET(request, { params }) {
   }
 }
 
+// Update a condition by ID
 export async function PUT(request, { params }) {
   try {
-    const { id } = await params;
+    const { id } = params;
     const { name, description, adviceformat, timerEnabled, timeLimit } = await request.json();
     
     const conditionId = parseInt(id);
@@ -64,7 +63,7 @@ export async function PUT(request, { params }) {
       );
     }
 
-    // Check if condition exists
+    // First it will check if the condition is exists or not
     const existingCondition = await prisma.condition.findUnique({
       where: { id: conditionId },
       include: {
@@ -79,15 +78,13 @@ export async function PUT(request, { params }) {
       );
     }
 
-    // Check for duplicate condition names in the same experiment (excluding current condition)
+    // If a new name was provided, check for duplicates inside the same experiment
     if (name && name.trim() !== existingCondition.name) {
       const trimmedName = name.trim();
       const existingConditions = await prisma.condition.findMany({
         where: {
           experimentId: existingCondition.experimentId,
-          id: {
-            not: conditionId
-          }
+          id: { not: conditionId }
         }
       });
 
@@ -103,7 +100,8 @@ export async function PUT(request, { params }) {
       }
     }
 
-    // Update condition
+    // Updating the condition with the provided fields
+    // Only the fields that are provided in the request body will be updated.
     const updatedCondition = await prisma.condition.update({
       where: { id: conditionId },
       data: {
@@ -120,16 +118,12 @@ export async function PUT(request, { params }) {
       }
     });
 
-    console.log('✅ Condition updated:', updatedCondition.name);
-
     return NextResponse.json({
       message: 'Condition updated successfully',
       condition: updatedCondition
     }, { status: 200 });
 
   } catch (error) {
-    console.error('❌ Error updating condition:', error);
-    
     return NextResponse.json({
       message: 'Failed to update condition',
       error: error.message 
@@ -137,9 +131,10 @@ export async function PUT(request, { params }) {
   }
 }
 
+// Delete a condition by its ID
 export async function DELETE(request, { params }) {
   try {
-    const { id } = await params;
+    const { id } = params;
     
     const conditionId = parseInt(id);
     if (isNaN(conditionId)) {
@@ -149,7 +144,7 @@ export async function DELETE(request, { params }) {
       );
     }
 
-    // Check if condition exists
+    // Check if condition exists before deleting
     const existingCondition = await prisma.condition.findUnique({
       where: { id: conditionId },
       include: {
@@ -166,19 +161,16 @@ export async function DELETE(request, { params }) {
       );
     }
 
-    // Delete the condition (cascade will handle puzzles and advice)
+    // Delete the condition (this will also delete associated puzzles due to cascading)
     await prisma.condition.delete({
       where: { id: conditionId }
     });
-
-    console.log(`✅ Deleted condition "${existingCondition.name}" and ${existingCondition._count.puzzles} associated puzzles`);
 
     return NextResponse.json({
       message: 'Condition and associated puzzles deleted successfully'
     }, { status: 200 });
 
   } catch (error) {
-    console.error('❌ Error deleting condition:', error);
     return NextResponse.json({
       message: 'Failed to delete condition',
       error: error.message 
