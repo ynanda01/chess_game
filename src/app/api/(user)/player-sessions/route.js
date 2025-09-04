@@ -254,7 +254,6 @@ export async function GET(request) {
   }
 }
 
-
 // PUT - Update session details like completion status or display level
 // Allows marking session as completed or updating the current display level
 // This is useful for resuming sessions or marking them completed
