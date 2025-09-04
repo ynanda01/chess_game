@@ -14,7 +14,7 @@ datasource db {
 }
 
 
-// Experimenter profile data
+// Researchers and experiment creators
 model Experimenters {
   id          Int          @id @default(autoincrement())
   name        String
@@ -26,7 +26,7 @@ model Experimenters {
   @@map("experimenters")
 }
 
-// Main experiment container
+// Main experiment configuration
 model Experiment {
   id             Int           @id @default(autoincrement())
   name           String
@@ -39,94 +39,117 @@ model Experiment {
   created_at     DateTime  @default(now())
   updated_at     DateTime  @updatedAt
 
-  conditions     Condition[]   // One experiment can have multiple conditions
+  conditions     Condition[]
   sessions       PlayerSession[]
   sessionOrders  SessionExperimentOrder[]
+  puzzleOrders   SessionPuzzleOrder[]
 
   @@map("experiments")
 }
 
-// NEW: Condition model - represents different experimental conditions
+// Different experimental conditions (control, treatment groups, etc.)
 model Condition {
   id             Int           @id @default(autoincrement())
-  name           String        // e.g., "Control", "With Advice", "No Timer", etc.
-  description    String?       // Optional description of this condition
+  name           String        // "Control", "With Advice", "High Pressure"
+  description    String?       
   
-  // Condition-specific settings (can override experiment defaults)
-  adviceformat   String?       // Override experiment's advice format
-  timerEnabled   Boolean?      // Override timer setting
-  timeLimit      Int?          // Override time limit
+  // Override experiment settings if needed
+  adviceformat   String?       
+  timerEnabled   Boolean?      
+  timeLimit      Int?          
   
   experiment     Experiment    @relation(fields: [experimentId], references: [id], onDelete: Cascade)
   experimentId   Int
   
-  order          Int           // Order of conditions within experiment
+  order          Int           // Display order in the experiment
   
   created_at     DateTime      @default(now())
   
-  puzzles        Puzzle[]      // Each condition has its own puzzles
+  puzzles        Puzzle[]      
+  sessionOrders  SessionExperimentOrder[]
+  puzzleOrders   SessionPuzzleOrder[]
   
   @@unique([experimentId, order])
-  @@unique([experimentId, name])  // Unique condition names within experiment
+  @@unique([experimentId, name])
   @@map("conditions")
 }
 
-// Randomized Level Order 
+// Tracks which condition order each player gets
 model SessionExperimentOrder {
   id           Int        @id @default(autoincrement())
   player_Name  String
   experiment   Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
   experimentId Int
-  conditionId  Int        // MAKE SURE THIS IS NOT NULL
-  order        Int        // Level number (1–5)
+  condition    Condition  @relation(fields: [conditionId], references: [id], onDelete: Cascade)
+  conditionId  Int        
+  order        Int        // Position in rotation sequence
 
   created_at   DateTime   @default(now())
 
-  
-  @@unique([player_Name, experimentId, order])  
+  @@unique([player_Name, experimentId, order])
   @@map("session_experiment_orders")
 }
 
-// Puzzles now belong to conditions instead of directly to experiments
+// Tracks puzzle rotation order for counterbalancing
+model SessionPuzzleOrder {
+  id           Int        @id @default(autoincrement())
+  player_Name  String
+  experiment   Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  experimentId Int
+  condition    Condition  @relation(fields: [conditionId], references: [id], onDelete: Cascade)
+  conditionId  Int
+  puzzle       Puzzle     @relation(fields: [puzzleId], references: [id], onDelete: Cascade)
+  puzzleId     Int
+  order        Int        // Rotated position within condition
+
+  created_at   DateTime   @default(now())
+
+  @@unique([player_Name, experimentId, conditionId, puzzleId])
+  @@unique([player_Name, experimentId, conditionId, order])
+  @@map("session_puzzle_orders")
+}
+
+// Chess puzzles for each condition
 model Puzzle {
   id           Int       @id @default(autoincrement())
-  fen          String    // Chess board state
-  correct_move String    // Correct solution
-  order        Int       // Order within this condition
+  fen          String    // Chess position in standard notation
+  correct_move String    // The best move solution
+  order        Int       // Original order within condition
 
   condition    Condition @relation(fields: [conditionId], references: [id], onDelete: Cascade)
   conditionId  Int
 
   advice       Advice?
   responses    PlayerResponse[]
+  puzzleOrders SessionPuzzleOrder[]
 
-  @@unique([conditionId, order])  // Unique order within each condition
+  @@unique([conditionId, order])
   @@map("puzzles")
 }
 
-// Advice linked to a puzzle (unchanged)
+// AI advice provided for puzzles
 model Advice {
   id           Int     @id @default(autoincrement())
   puzzle       Puzzle  @relation(fields: [puzzleId], references: [id], onDelete: Cascade)
   puzzleId     Int     @unique
 
   text         String
-  confidence   Float?     // Optional confidence %
-  explanation  String?    // Optional explanation
+  confidence   Float?     // Confidence score from 0.0 to 1.0
+  explanation  String?    
   reliability  String     // "Poor", "Moderate", "High"
 
   @@map("advice")
 }
 
-// Player session (minimal changes)
+// Individual participant session
 model PlayerSession {
   id             Int       @id @default(autoincrement())
   player_name    String
   experiment     Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
   experimentId   Int
-  conditionId    Int?      // Track which condition this player is in
+  conditionId    Int?      // Current condition being played
 
-  display_level  Int       // Level number (1–5)
+  display_level  Int       // Current level in the experiment
   started_at     DateTime  @default(now())
   completed_at   DateTime?
 
@@ -136,7 +159,7 @@ model PlayerSession {
   @@map("player_sessions")
 }
 
-// Player's responses to puzzles during a session (unchanged)
+// Player's solution attempt for each puzzle
 model PlayerResponse {
   id                   Int            @id @default(autoincrement())
 
@@ -145,10 +168,10 @@ model PlayerResponse {
   puzzle               Puzzle         @relation(fields: [puzzleId], references: [id], onDelete: Cascade)
   puzzleId             Int
 
-  move_before_advice   String?        // Optional
-  time_before_advice   Int?           // In seconds
-  move_after_advice    String?         // Final move submitted
-  time_after_advice    Int?           // In seconds
+  move_before_advice   String?        // Initial move before seeing advice
+  time_before_advice   Int?           // Time spent before advice shown
+  move_after_advice    String?        // Final submitted move
+  time_after_advice    Int?           // Additional time after seeing advice
 
   advice_shown         Boolean        @default(false)
   advice_requested     Boolean        @default(false)
@@ -160,22 +183,24 @@ model PlayerResponse {
 
   completed_at         DateTime       @default(now())
 
-  moves                MoveRecord[]   // Full move history
+  moves                MoveRecord[]
 
   @@unique([sessionId, puzzleId])
   @@map("player_responses")
 }
 
-// Move record (unchanged)
+// Complete move history during puzzle solving
 model MoveRecord {
   id             Int            @id @default(autoincrement())
   response       PlayerResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
   responseId     Int
 
-  move           String         // Algebraic move e.g., e2e4
-  move_number    Int            // Order in sequence: 1, 2, 3...
-  time_taken     Int?           // Time in seconds
-  was_undone     Boolean        // True if undone later
+  move           String         // Move like "e4", "Nf3", "O-O"
+  move_number    Int            // Sequence number
+  time_taken     Int?           // Seconds for this move
+  was_undone     Boolean        @default(false)
 
   created_at     DateTime       @default(now())
+
+  @@map("move_records")
 }

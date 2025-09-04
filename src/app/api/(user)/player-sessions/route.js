@@ -3,25 +3,18 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-// Randomised helper
-// below code rotates conditions across sessions so that each one gets a equal share to remove bias.
-// Useful when running multiple participants to avoid bias in order of presentation.
 
-function getRandomisedConditionOrder(conditions, sessionCount) {
-  const numConditions = conditions.length;
-  if (numConditions === 0) return [];
-  
-  //Figure out where to start rotating the conditions for this session
-  const offset = sessionCount % numConditions;
-  
-  // Create rotated array shift conditions by offset positions
-  const rotation = [
-    ...conditions.slice(offset),
-    ...conditions.slice(0, offset)
-  ];
-  
-  return rotation;
+//  Rotate an array ( which means conditions or puzzles ) to the right
+// means like 123 -> 231 if offset is 1
+//  Used for counterbalancing both conditions and puzzles.
+ 
+function rotateArrayRight(arr, offset) {
+  const n = arr.length;
+  if (n === 0) return [];
+  const shift = offset % n;
+  return [...arr.slice(n - shift), ...arr.slice(0, n - shift)];
 }
+
 
 // POST - Create a new player session
 
@@ -29,29 +22,27 @@ export async function POST(request) {
   try {
     const { playerName } = await request.json();
 
+    // Validate player name
     if (!playerName || playerName.trim().length === 0) {
-      return NextResponse.json({
-        message: 'The Player name is required'
-      }, { status: 400 });
+      return NextResponse.json({ message: 'Player name is required' }, { status: 400 });
     }
 
-    // Get the active experiment
+    // Get the active experiment with conditions and puzzles
     const activeExperiment = await prisma.experiment.findFirst({
       where: { isActive: true },
       include: {
         conditions: {
-          orderBy: { id: 'asc' }
+          orderBy: { id: 'asc' },
+          include: { puzzles: { orderBy: { id: 'asc' } } }
         }
       }
     });
 
     if (!activeExperiment) {
-      return NextResponse.json({
-        message: 'Oh, No active experiment available'
-      }, { status: 404 });
+      return NextResponse.json({ message: 'No active experiment available' }, { status: 404 });
     }
 
-    // Check if player already has a session for this experiment
+    // Check if a session already exists for this player or not
     const existingSession = await prisma.playerSession.findUnique({
       where: {
         player_name_experimentId: {
@@ -73,21 +64,18 @@ export async function POST(request) {
       });
     }
 
-    // Get session count for randomised condition order
+    // Determine how many sessions are exist (used for counterbalancing)
     const sessionCount = await prisma.playerSession.count({
       where: { experimentId: activeExperiment.id }
     });
-    
-    // Apply randomised to get rotation condition order
-    const randomisedConditions = getRandomisedConditionOrder(
-      activeExperiment.conditions, 
-      sessionCount
-    );
-    
-    // For the first level (Set 1), assign the first condition from randomised order
-    const assignedCondition = randomisedConditions[0];
 
-    // Create new session
+    // Rotate conditions for this session
+    const rotatedConditions = rotateArrayRight(activeExperiment.conditions, sessionCount);
+
+    // Assign the first condition from the rotated list
+    const assignedCondition = rotatedConditions[0];
+
+    // Create new player session
     const session = await prisma.playerSession.create({
       data: {
         player_name: playerName.trim(),
@@ -97,28 +85,43 @@ export async function POST(request) {
       }
     });
 
-    // Delete any existing session order for this player in the current experiment
+    // Clear previous condition and puzzle orders for this player
     await prisma.sessionExperimentOrder.deleteMany({
-      where: {
-        player_Name: playerName.trim(),
-        experimentId: activeExperiment.id
-      }
+      where: { player_Name: playerName.trim(), experimentId: activeExperiment.id }
+    });
+    await prisma.sessionPuzzleOrder.deleteMany({
+      where: { player_Name: playerName.trim(), experimentId: activeExperiment.id }
     });
 
-    // Below part is to create session orders
-    for (let index = 0; index < randomisedConditions.length; index++) {
-      const condition = randomisedConditions[index];
-      
+    // Store the counterbalanced order for conditions and puzzles
+    for (const condition of activeExperiment.conditions) {
+      const rotatedIndex = rotatedConditions.findIndex(c => c.id === condition.id);
       await prisma.sessionExperimentOrder.create({
         data: {
           player_Name: playerName.trim(),
           experimentId: activeExperiment.id,
           conditionId: condition.id,
-          order: index + 1
+          order: rotatedIndex + 1
         }
       });
+
+      // Rotate puzzles independently for each condition
+      const rotatedPuzzles = rotateArrayRight(condition.puzzles, sessionCount);
+      for (const puzzle of condition.puzzles) {
+        const rotatedPuzzleIndex = rotatedPuzzles.findIndex(p => p.id === puzzle.id);
+        await prisma.sessionPuzzleOrder.create({
+          data: {
+            player_Name: playerName.trim(),
+            experimentId: activeExperiment.id,
+            conditionId: condition.id,
+            puzzleId: puzzle.id,
+            order: rotatedPuzzleIndex + 1
+          }
+        });
+      }
     }
 
+    // Return session info and counterbalancing details
     return NextResponse.json({
       message: 'Session created successfully',
       sessionId: session.id,
@@ -131,32 +134,30 @@ export async function POST(request) {
       existing: false,
       counterbalancing: {
         sessionNumber: sessionCount + 1,
-        conditionOrder: randomisedConditions.map((c, idx) => ({ 
-          set: idx + 1, 
-          conditionId: c.id, 
-          conditionName: c.name 
+        conditionOrder: rotatedConditions.map((c, idx) => ({
+          set: idx + 1,
+          conditionId: c.id,
+          conditionName: c.name
         }))
       }
     }, { status: 201 });
 
   } catch (error) {
     console.error('Session creation error:', error);
-    
-    // Handle unique constraint violation 
-    // If a session for this player already exists, return a 409 Conflict instead of creating a duplicate
+
+    // This error code indicates a unique constraint violation in Prisma
     if (error.code === 'P2002') {
-      return NextResponse.json({
-        message: 'Session already exists for this player'
-      }, { status: 409 });
+      return NextResponse.json({ message: 'Session already exists for this player' }, { status: 409 });
     }
 
-    return NextResponse.json({
-      message: 'Server error while creating session'
-    }, { status: 500 });
+    return NextResponse.json({ message: 'Server error while creating session' }, { status: 500 });
   }
 }
 
-// GET - Get session information
+
+// GET - Fetch a player's session details
+// Returns session info, progress stats, and counterbalancing details
+ 
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -164,71 +165,33 @@ export async function GET(request) {
     const playerName = searchParams.get('playerName');
 
     if (!sessionId && !playerName) {
-      return NextResponse.json({
-        message: 'Session ID or player name required'
-      }, { status: 400 });
+      return NextResponse.json({ message: 'Session ID or player name required' }, { status: 400 });
     }
 
     let session;
 
+    // Fetch session by ID or latest session for the player
     if (sessionId) {
       session = await prisma.playerSession.findUnique({
         where: { id: parseInt(sessionId) },
         include: {
           experiment: {
-            select: {
-              id: true,
-              name: true,
-              isActive: true,
-              experimenter: {
-                select: { name: true }
-              }
-            }
+            select: { id: true, name: true, isActive: true, experimenter: { select: { name: true } } }
           },
           responses: {
-            include: {
-              puzzle: {
-                select: {
-                  id: true,
-                  order: true,
-                  condition: {
-                    select: { name: true, order: true }
-                  }
-                }
-              }
-            }
+            include: { puzzle: { select: { id: true, order: true, condition: { select: { name: true, order: true } } } } }
           }
         }
       });
-    } else if (playerName) {
-
-      // Fetch the player's latest session with experiment and response details.
-      // If no session exists, return a 404 error.
-        session = await prisma.playerSession.findFirst({
+    } else {
+      session = await prisma.playerSession.findFirst({
         where: { player_name: playerName },
         include: {
           experiment: {
-            select: {
-              id: true,
-              name: true,
-              isActive: true,
-              experimenter: {
-                select: { name: true }
-              }
-            }
+            select: { id: true, name: true, isActive: true, experimenter: { select: { name: true } } }
           },
           responses: {
-            include: {
-              puzzle: {
-                select: {
-                  id: true,
-                  order: true,
-                  condition: {
-                    select: { name: true, order: true }
-                  }
-                }
-              }
-            }
+            include: { puzzle: { select: { id: true, order: true, condition: { select: { name: true, order: true } } } } }
           }
         },
         orderBy: { started_at: 'desc' }
@@ -236,24 +199,17 @@ export async function GET(request) {
     }
 
     if (!session) {
-      return NextResponse.json({
-        message: 'Session not found'
-      }, { status: 404 });
+      return NextResponse.json({ message: 'Session not found' }, { status: 404 });
     }
 
-    // Fetch the player's condition order for this experiment
-    // Ensures tasks/puzzles are presented in the correct counterbalanced sequence to prevent order effects
-    // This is used to maintain the randomised order of conditions across sessions
-
+    // Fetch the player's condition order
     const sessionOrders = await prisma.sessionExperimentOrder.findMany({
-      where: {
-        player_Name: session.player_name,
-        experimentId: session.experimentId
-      },
+      where: { player_Name: session.player_name, experimentId: session.experimentId },
       orderBy: { order: 'asc' }
     });
 
 
+    // Calculate progress for the session
     const totalResponses = session.responses.length;
     const completedResponses = session.responses.filter(r => !r.skipped).length;
     const skippedResponses = session.responses.filter(r => r.skipped).length;
@@ -294,51 +250,37 @@ export async function GET(request) {
 
   } catch (error) {
     console.error('Session fetch error:', error);
-    return NextResponse.json({
-      message: 'Server error while fetching session'
-    }, { status: 500 });
+    return NextResponse.json({ message: 'Server error while fetching session' }, { status: 500 });
   }
 }
 
-// PUT - Update a player's session
-// Update a player's session  mark it completed, reset completion, or change display level
-// Returns the updated session info so the frontend can reflect changes immediately
+
+// PUT - Update session details like completion status or display level
+// Allows marking session as completed or updating the current display level
+// This is useful for resuming sessions or marking them completed
+
 export async function PUT(request) {
   try {
     const { sessionId, completed, displayLevel } = await request.json();
 
-    // check if session id is provided
+    // Validate session ID
     if (!sessionId) {
-      return NextResponse.json({
-        message: 'Session ID is required'
-      }, { status: 400 });
+      return NextResponse.json({ message: 'Session ID is required' }, { status: 400 });
     }
 
+    // Prepare update data
     const updateData = {};
-    
-    if (completed !== undefined) {
-      updateData.completed_at = completed ? new Date() : null;
-    }
-    
-    if (displayLevel !== undefined) {
-      updateData.display_level = parseInt(displayLevel);
-    }
+    if (completed !== undefined) updateData.completed_at = completed ? new Date() : null;
+    if (displayLevel !== undefined) updateData.display_level = parseInt(displayLevel);
 
-    // Update the session with new data
-    // Include experiment details to return in response
+    // Update session in the database
     const session = await prisma.playerSession.update({
       where: { id: parseInt(sessionId) },
       data: updateData,
-      include: {
-        experiment: {
-          select: {
-            name: true,
-            isActive: true
-          }
-        }
-      }
+      include: { experiment: { select: { name: true, isActive: true } } }
     });
 
+    // Return updated session info
     return NextResponse.json({
       message: 'Session updated successfully',
       sessionId: session.id,
@@ -350,8 +292,6 @@ export async function PUT(request) {
 
   } catch (error) {
     console.error('Session update error:', error);
-    return NextResponse.json({
-      message: 'Server error while updating session'
-    }, { status: 500 });
+    return NextResponse.json({ message: 'Server error while updating session' }, { status: 500 });
   }
 }
