@@ -12,7 +12,7 @@ function rotateArrayRight(arr, offset) {
   const n = arr.length;
   if (n === 0) return [];
   const shift = offset % n;
-  return [...arr.slice(n - shift), ...arr.slice(0, n - shift)];
+  return [...arr.slice(n-shift), ...arr.slice(0, n-shift)];
 }
 
 

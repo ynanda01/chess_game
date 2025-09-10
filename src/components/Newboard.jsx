@@ -331,7 +331,7 @@ export default function Newboard({
         setPossibleMoves([]);
         
         if (onMoveSubmit) {
-          onMoveSubmit(move.san, { from: from, to: to });
+          onMoveSubmit(`${from}${to}`, { from, to });
         }
         return true;
       }

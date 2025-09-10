@@ -303,7 +303,7 @@ export default function LevelPage() {
       }
     }
     
-    // Determine if move matches advice
+    // checking if move matches advice
     const finalMove = finalMoveAfterAdvice || finalMoveBeforeAdvice;
     const moveMatchesAdvice = currentPuzzle.correct_move && finalMove === currentPuzzle.correct_move;
     
