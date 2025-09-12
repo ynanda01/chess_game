@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom";
-import { POST } from '@/app/api/(auth)/login/route.js'; // Adjust path to match your API file
+import { POST } from '@/app/api/(auth)/login/route.js'; 
 import prisma from '../lib/prisma';
 import bcrypt from 'bcryptjs';
 

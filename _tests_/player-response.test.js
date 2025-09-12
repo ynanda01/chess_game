@@ -75,7 +75,7 @@ describe('Player Response API - Automation Bias Tests', () => {
   };
 
   test('should correctly track when player follows wrong advice (automation bias)', async () => {
-    // Setup: Puzzle where advice is wrong but player follows it
+  
     mockPrisma.puzzle.findUnique.mockResolvedValue({
       id: 101,
       correct_move: 'e2e4', // Correct move
@@ -130,7 +130,7 @@ describe('Player Response API - Automation Bias Tests', () => {
     const requestData = {
       sessionId: 1,
       puzzleId: 102,
-      moveAfterAdvice: 'e2e4', // Stuck with correct move
+      moveAfterAdvice: 'e2e4', 
       adviceShown: true,
       adviceMove: 'e2e3'
     };
@@ -167,7 +167,7 @@ describe('Player Response API - Automation Bias Tests', () => {
       puzzleId: 103,
       moveAfterAdvice: 'Nf3',
       adviceShown: true
-      // No adviceMove - should extract from advice.text
+     
     };
 
     const request = createRequest(requestData);
@@ -182,7 +182,7 @@ describe('Player Response API - Automation Bias Tests', () => {
 
     expect(mockPrisma.playerResponse.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
-        move_matches_advice: true, // Should match extracted 'Nf3'
+        move_matches_advice: true, 
       })
     });
   });

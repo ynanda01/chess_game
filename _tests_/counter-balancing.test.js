@@ -32,7 +32,7 @@ const mockPrismaClient = {
 
 jest.mock('@prisma/client', () => ({ PrismaClient: jest.fn(() => mockPrismaClient) }));
 
-// --- Import your POST function ---
+
 let POST;
 beforeAll(async () => {
   ({ POST } = await import('@/app/api/(user)/player-sessions/route.js'));

@@ -1,4 +1,3 @@
-/* component Newboard.jsx - Complete path visualization with dark theme */
 "use client";
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { Chess } from "chess.js";
@@ -428,8 +427,8 @@ export default function Newboard({
     const fileIndex = files.indexOf(square[0]);
     const rank = parseInt(square[1]);
     const isLight = (fileIndex + rank) % 2 === 0;
-    let backgroundColor = isLight ? "#f0d9b5" : "#b58863"; // Original board colors
-    let border = "1px solid #333"; // Default border
+    let backgroundColor = isLight ? "#f0d9b5" : "#b58863"; 
+    let border = "1px solid #333"; 
 
     const paths = getMovementPaths();
     const adviceMove = parseAdviceMove();
@@ -454,21 +453,21 @@ export default function Newboard({
     
     // Priority order for square coloring - final version with green advice
     if (selectedSquare === square) {
-      backgroundColor = "#4169E1"; // Blue for selected piece
+      backgroundColor = "#4169E1"; 
     }
     else if (isPossibleMoveTarget) {
-      backgroundColor = "#FFD700"; // Gold for possible move targets
+      backgroundColor = "#FFD700"; 
     }
     else if (isPossibleMovePathSquare && selectedSquare) {
-      backgroundColor = "#FFD700"; // Yellow for all possible move paths
+      backgroundColor = "#FFD700"; 
     }
     else if (hoveredSquare === square && isDragging) {
-      backgroundColor = "#90EE90"; // Light green for drag hover
+      backgroundColor = "#90EE90"; 
     }
     else if (showAdvice) {
       if (isUserPathSquare && isAdvicePathSquare && moveMatchesAdvice) {
         if (isUserFromSquare || isAdviceFromSquare) {
-          backgroundColor = "#228B22"; // Dark green for matching from squares (highlighted)
+          backgroundColor = "#228B22"; 
           border = "3px solid white"; // White border for from squares
         } else {
           backgroundColor = "#32CD32"; // Green for matching path
